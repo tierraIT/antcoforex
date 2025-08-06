@@ -16,7 +16,7 @@ export class GeminiService {
       // console.warn("GEMINI_API_KEY is not explicitly set in the constructor. Ensure it's provided by the runtime environment.");
     }
     this.genAI = new GoogleGenerativeAI(apiKey)
-    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
   }
 
   async enhanceAnalysis(
