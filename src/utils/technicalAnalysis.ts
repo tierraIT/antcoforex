@@ -280,6 +280,26 @@ export class TechnicalAnalyzer {
         return [basicSignal];
     }
 
+    static async getGeminiFinalDecision(
+        candles: ProcessedCandle[],
+        indicators: TechnicalIndicators,
+        technicalSignal: TradingSignal,
+        symbol?: TradingSymbol
+    ): Promise<TradingSignal> {
+        try {
+            console.log(`🤖 Gemini final decision for ${technicalSignal.action} signal`);
+            const geminiSignal = await this.geminiService.enhanceAnalysis(candles, indicators, technicalSignal, symbol);
+            return geminiSignal;
+        } catch (error) {
+            console.error('Gemini decision failed:', error);
+            // Return technical signal as fallback
+            return {
+                ...technicalSignal,
+                reason: `${technicalSignal.reason} (Gemini unavailable - using technical analysis)`
+            };
+        }
+    }
+
     static calculateCurrentTickSignal(
         candles: ProcessedCandle[],
         indicators: TechnicalIndicators,
@@ -373,30 +393,30 @@ export class TechnicalAnalyzer {
         let probability = 50;
         let strength: 'WEAK' | 'MODERATE' | 'STRONG' | 'VERY_STRONG' = 'WEAK';
 
-        if (score >= 4) {
+        if (score >= 6) {
             action = 'BUY';
-            if (score >= 10) {
+            if (score >= 12) {
                 strength = 'VERY_STRONG';
-                probability = 90;
-            } else if (score >= 7) {
+                probability = 85;
+            } else if (score >= 9) {
                 strength = 'STRONG';
-                probability = 80;
+                probability = 75;
             } else {
                 strength = 'MODERATE';
-                probability = 65;
+                probability = 60;
             }
             confidence = Math.min(50 + score * 5, 95);
-        } else if (score <= -4) {
+        } else if (score <= -6) {
             action = 'SELL';
-            if (score <= -10) {
+            if (score <= -12) {
                 strength = 'VERY_STRONG';
-                probability = 90;
-            } else if (score <= -7) {
+                probability = 85;
+            } else if (score <= -9) {
                 strength = 'STRONG';
-                probability = 80;
+                probability = 75;
             } else {
                 strength = 'MODERATE';
-                probability = 65;
+                probability = 60;
             }
             confidence = Math.min(50 + Math.abs(score) * 5, 95);
         } else {

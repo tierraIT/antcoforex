@@ -39,161 +39,133 @@ function App() {
   const handleSymbolChange = useCallback((symbol: TradingSymbol) => {
     setCurrentSymbol(symbol);
     localStorage.setItem('selected_symbol', JSON.stringify(symbol));
-    setBaseAnalysis(null);
-    setLastSignalSent(0);
-    setLastAiSignal(null);
-    setAnalysisConflict(false);
+    setTechnicalAnalysis(null);
+    setLastTelegramSent(0);
+    setGeminiProcessing(false);
   }, []);
 
-  // Base analysis from Technical Analysis only
-  const [baseAnalysis, setBaseAnalysis] = useState<MarketAnalysis | null>(null);
+  // Technical analysis from indicators only
+  const [technicalAnalysis, setTechnicalAnalysis] = useState<MarketAnalysis | null>(null);
 
-  // Telegram-specific states (NEW LOGIC)
-  const [telegramProcessing, setTelegramProcessing] = useState(false);
-  const [lastSignalSent, setLastSignalSent] = useState<number>(0);
-  const [lastAiSignal, setLastAiSignal] = useState<TradingSignal | null>(null);
-  const [aiDecisionTimestamp, setAiDecisionTimestamp] = useState<number>(0);
-  const [analysisConflict, setAnalysisConflict] = useState<{ ta: string; ai: string } | false>(false);
+  // Gemini and Telegram states
+  const [geminiProcessing, setGeminiProcessing] = useState(false);
+  const [lastTelegramSent, setLastTelegramSent] = useState<number>(0);
+  const [lastGeminiSignal, setLastGeminiSignal] = useState<TradingSignal | null>(null);
 
-  // Update baseAnalysis whenever candles change
+  // Update technical analysis whenever candles change
   useEffect(() => {
     if (candles.length === 0) {
-      setBaseAnalysis(null);
+      setTechnicalAnalysis(null);
       return;
     }
-    setBaseAnalysis(TechnicalAnalyzer.analyzeMarket(candles));
+    setTechnicalAnalysis(TechnicalAnalyzer.analyzeMarket(candles));
   }, [candles]);
 
-  // NEW LOGIC: AI chỉ được gọi khi quyết định gửi Telegram
+  // NEW FLOW: Detect strong signals -> Gemini final decision -> Telegram
   useEffect(() => {
-    // Kiểm tra config Telegram
+    // Check Telegram config
     if (!telegramConfig.enabled || !telegramConfig.botToken || !telegramConfig.chatId) {
-      console.log('❌ Telegram not configured:', {
-        enabled: telegramConfig.enabled,
-        hasToken: !!telegramConfig.botToken,
-        hasChatId: !!telegramConfig.chatId
-      });
       return;
     }
 
-    // Kiểm tra baseAnalysis
-    if (!baseAnalysis || !baseAnalysis.signals[0]) {
-      console.log('❌ No base analysis available');
+    // Check technical analysis
+    if (!technicalAnalysis || !technicalAnalysis.signals[0]) {
       return;
     }
 
-    const currentSignal = baseAnalysis.signals[0];
-    const timeSinceLastSignal = Date.now() - lastSignalSent;
+    const technicalSignal = technicalAnalysis.signals[0];
+    const timeSinceLastTelegram = Date.now() - lastTelegramSent;
     const currentPrice = candles[candles.length - 1]?.close;
 
     if (!currentPrice) {
-      console.log('❌ No current price available');
       return;
     }
 
-    // BƯỚC 1: Quyết định có nên gửi Telegram không (dựa trên Technical Analysis)
-    const isActionable = (currentSignal.action === 'BUY' || currentSignal.action === 'SELL');
-    const isQualitySignal = currentSignal.probability >= 65 || currentSignal.confidence >= 60;
-    const cooldownPassed = timeSinceLastSignal > 60000; // 1 phút
+    // STEP 1: Detect strong signals from technical analysis
+    const isStrongSignal = (
+      (technicalSignal.action === 'BUY' || technicalSignal.action === 'SELL') &&
+      technicalSignal.strength === 'STRONG' || technicalSignal.strength === 'VERY_STRONG'
+    ) && (
+      technicalSignal.probability >= 70 && technicalSignal.confidence >= 65
+    );
     
-    const shouldConsiderSending = isActionable && isQualitySignal && cooldownPassed;
+    const cooldownPassed = timeSinceLastTelegram > 120000; // 2 minutes cooldown
+    const shouldProcessWithGemini = isStrongSignal && cooldownPassed && !geminiProcessing;
 
-    console.log('🎯 Telegram Decision Step 1 - TA Analysis:', {
-      signal: currentSignal.action,
-      probability: currentSignal.probability,
-      confidence: currentSignal.confidence,
-      strength: currentSignal.strength,
-      isActionable,
-      isQualitySignal,
+    console.log('🔍 Strong Signal Detection:', {
+      signal: technicalSignal.action,
+      strength: technicalSignal.strength,
+      probability: technicalSignal.probability,
+      confidence: technicalSignal.confidence,
+      isStrongSignal,
       cooldownPassed,
-      timeSinceLastSignal: Math.round(timeSinceLastSignal / 1000) + 's',
-      shouldConsiderSending
+      shouldProcessWithGemini
     });
 
-    if (!shouldConsiderSending) {
-      console.log('⏸️ Signal not worth sending - conditions not met');
+    if (!shouldProcessWithGemini) {
       return;
     }
 
-    // BƯỚC 2: Nếu quyết định gửi -> Gọi AI để xác nhận lần cuối
-    const enhanceAndSend = async () => {
-      if (telegramProcessing) {
-        console.log('⏸️ AI already processing, skipping...');
-        return;
-      }
 
-      setTelegramProcessing(true);
+    // STEP 2: Use Gemini for final decision and send to Telegram
+    const processWithGemini = async () => {
+      setGeminiProcessing(true);
       
       try {
-        console.log('🤖 AI Final Check - Enhancing signal before Telegram...');
+        console.log('🤖 Gemini Final Decision - Processing strong signal...');
         
         const indicators = TechnicalAnalyzer.getTechnicalIndicators(candles);
-        const enhancedSignals = await TechnicalAnalyzer.generateEnhancedTradingSignals(
+        const geminiSignal = await TechnicalAnalyzer.getGeminiFinalDecision(
           candles,
           indicators,
-          baseAnalysis.trend,
-          baseAnalysis.momentum,
+          technicalSignal,
           currentSymbol
         );
 
-        const aiEnhancedSignal = enhancedSignals[0];
-        setLastAiSignal(aiEnhancedSignal);
-        setAiDecisionTimestamp(Date.now());
+        setLastGeminiSignal(geminiSignal);
 
-        console.log('🤖 AI Final Decision:', {
-          originalAction: currentSignal.action,
-          aiAction: aiEnhancedSignal.action,
-          originalProbability: currentSignal.probability,
-          aiProbability: aiEnhancedSignal.probability,
-          aiConfidence: aiEnhancedSignal.confidence,
-          conflict: currentSignal.action !== aiEnhancedSignal.action
+        console.log('🤖 Gemini Decision:', {
+          technicalAction: technicalSignal.action,
+          geminiAction: geminiSignal.action,
+          geminiConfidence: geminiSignal.confidence,
+          geminiProbability: geminiSignal.probability
         });
 
-        // BƯỚC 3: AI có thể từ chối gửi (nếu AI disagreement)
-        const aiApproves = aiEnhancedSignal.action === currentSignal.action || 
-                          aiEnhancedSignal.probability >= 70;
-
-        if (!aiApproves) {
-          console.log('🚫 AI rejected signal - not sending to Telegram');
-          setAnalysisConflict({ 
-            ta: currentSignal.action, 
-            ai: aiEnhancedSignal.action 
-          });
-          return;
-        }
-
-        // BƯỚC 4: AI đồng ý -> Gửi Telegram
-        console.log('✅ AI approved - sending to Telegram');
-        setAnalysisConflict(false);
-        
-        const success = await telegramService.sendTradingAlert(aiEnhancedSignal, currentPrice);
-        
-        if (success) {
-          setLastSignalSent(Date.now());
-          console.log('📱 Telegram alert sent successfully');
+        // STEP 3: Send to Telegram if Gemini confirms
+        if (geminiSignal.action === 'BUY' || geminiSignal.action === 'SELL') {
+          const success = await telegramService.sendTradingAlert(geminiSignal, currentPrice);
+          
+          if (success) {
+            setLastTelegramSent(Date.now());
+            console.log('📱 Telegram alert sent successfully');
+          } else {
+            console.log('❌ Failed to send Telegram alert');
+          }
         } else {
-          console.log('❌ Failed to send Telegram alert');
+          console.log('🚫 Gemini decided HOLD - not sending to Telegram');
         }
+
+
 
       } catch (error) {
-        console.error('🤖 AI enhancement failed:', error);
+        console.error('🤖 Gemini processing failed:', error);
         
-        // Fallback: Gửi signal gốc nếu AI fail
-        console.log('📱 Fallback: Sending original signal to Telegram');
-        const success = await telegramService.sendTradingAlert(currentSignal, currentPrice);
+        // Fallback: Send technical signal if Gemini fails
+        console.log('📱 Fallback: Sending technical signal to Telegram');
+        const success = await telegramService.sendTradingAlert(technicalSignal, currentPrice);
         
         if (success) {
-          setLastSignalSent(Date.now());
+          setLastTelegramSent(Date.now());
           console.log('📱 Fallback Telegram alert sent');
         }
       } finally {
-        setTelegramProcessing(false);
+        setGeminiProcessing(false);
       }
     };
 
-    enhanceAndSend();
+    processWithGemini();
 
-  }, [baseAnalysis, telegramConfig, candles, lastSignalSent, telegramService, currentSymbol, telegramProcessing]);
+  }, [technicalAnalysis, telegramConfig, candles, lastTelegramSent, telegramService, currentSymbol, geminiProcessing]);
 
   const indicators = useMemo(() => {
     if (candles.length === 0) return null;
@@ -271,14 +243,14 @@ function App() {
     );
   }
 
-  // Use baseAnalysis as main analysis
-  const displayAnalysis = baseAnalysis;
+  // Use technical analysis as main display
+  const displayAnalysis = technicalAnalysis;
   const currentSignal = displayAnalysis?.signals[0];
 
-  // Enhanced signal for display purposes only
-  const displaySignal = lastAiSignal && 
-                       (Date.now() - aiDecisionTimestamp < 30000) ? // Show AI result for 30s
-                       lastAiSignal : currentSignal;
+  // Show Gemini signal for display if recent
+  const displaySignal = lastGeminiSignal && 
+                       (Date.now() - (lastGeminiSignal.timestamp || 0) < 60000) ? // Show Gemini result for 1 minute
+                       lastGeminiSignal : currentSignal;
 
   // If displayAnalysis or indicators are still null, show insufficient data message
   if (!displayAnalysis || !indicators) {
@@ -303,34 +275,24 @@ function App() {
             <div className="flex items-center space-x-2">
               <p className="text-gray-400 text-sm">Antco AI</p>
               
-              {/* Telegram Processing Status */}
-              {telegramProcessing && (
+              {/* Gemini Processing Status */}
+              {geminiProcessing && (
                 <div className="flex items-center space-x-1">
                   <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-yellow-400">🤖 AI đang xác nhận trước khi gửi Telegram...</span>
+                  <span className="text-xs text-yellow-400">🤖 Gemini đang phân tích tín hiệu mạnh...</span>
                 </div>
               )}
               
-              {/* Conflict Warning */}
-              {!telegramProcessing && analysisConflict && (
-                <div className="flex items-center space-x-2 bg-red-900/50 border border-red-700 px-2 py-1 rounded">
-                  <AlertTriangle className="w-4 h-4 text-red-400" />
-                  <span className="text-xs text-red-300 font-semibold">
-                    AI từ chối: TA đề xuất {analysisConflict.ta} nhưng AI quyết định {analysisConflict.ai}
-                  </span>
-                </div>
-              )}
-              
-              {/* Success Status */}
-              {!telegramProcessing && lastAiSignal && (Date.now() - aiDecisionTimestamp < 10000) && !analysisConflict && (
+              {/* Gemini Decision Status */}
+              {!geminiProcessing && lastGeminiSignal && (Date.now() - (lastGeminiSignal.timestamp || 0) < 30000) && (
                 <div className="flex items-center space-x-1">
                   <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-xs text-green-400">✅ AI đã phê duyệt và gửi Telegram</span>
+                  <span className="text-xs text-green-400">✅ Gemini đã quyết định: {lastGeminiSignal.action}</span>
                 </div>
               )}
               
               {/* Technical Analysis Only */}
-              {!telegramProcessing && (!lastAiSignal || (Date.now() - aiDecisionTimestamp > 10000)) && displayAnalysis && (
+              {!geminiProcessing && (!lastGeminiSignal || (Date.now() - (lastGeminiSignal.timestamp || 0) > 30000)) && displayAnalysis && (
                 <div className="flex items-center space-x-1">
                   <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
                   <span className="text-xs text-blue-400">📊 Phân tích kỹ thuật</span>

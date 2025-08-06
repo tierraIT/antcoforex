@@ -145,21 +145,21 @@ export const TelegramSettings: React.FC<TelegramSettingsProps> = ({
               <div className="mt-4 p-3 bg-gray-900/50 rounded">
                 <h4 className="text-sm font-medium text-gray-300 mb-2">📋 Auto-send Conditions</h4>
                 <div className="text-xs text-gray-400 space-y-1">
-                  <div>• <strong>Signal:</strong> BUY/SELL only (không gửi HOLD)</div>
-                  <div>• <strong>Quality:</strong> Probability ≥65% OR Confidence ≥60%</div>
-                  <div>• <strong>AI Check:</strong> Gemini AI xác nhận cuối cùng</div>
-                  <div>• <strong>Cooldown:</strong> 1 phút giữa các tín hiệu</div>
-                  <div>• <strong>Fallback:</strong> Gửi TA signal nếu AI fail</div>
+                  <div>• <strong>Strong Signal:</strong> STRONG/VERY_STRONG only</div>
+                  <div>• <strong>Quality:</strong> Probability ≥70% AND Confidence ≥65%</div>
+                  <div>• <strong>Gemini Decision:</strong> Final BUY/SELL confirmation</div>
+                  <div>• <strong>Cooldown:</strong> 2 phút giữa các tín hiệu</div>
+                  <div>• <strong>Fallback:</strong> Gửi TA signal nếu Gemini fail</div>
                 </div>
               </div>
 
-              <div className="mt-4 p-3 bg-blue-900/20 border border-blue-700 rounded">
-                <h4 className="text-sm font-medium text-blue-300 mb-2">🤖 AI Enhancement Flow</h4>
-                <div className="text-xs text-blue-200 space-y-1">
-                  <div>1. Technical Analysis đánh giá tín hiệu</div>
-                  <div>2. Nếu đủ điều kiện gửi → Gọi AI Gemini</div>
-                  <div>3. AI xác nhận/từ chối tín hiệu</div>
-                  <div>4. Chỉ gửi Telegram khi AI đồng ý</div>
+              <div className="mt-4 p-3 bg-green-900/20 border border-green-700 rounded">
+                <h4 className="text-sm font-medium text-green-300 mb-2">🚀 New Trading Flow</h4>
+                <div className="text-xs text-green-200 space-y-1">
+                  <div>1. Phát hiện tín hiệu MẠNH từ chỉ số kỹ thuật</div>
+                  <div>2. Gemini phân tích tổng hợp → Quyết định cuối</div>
+                  <div>3. Gửi Telegram ngay khi có BUY/SELL</div>
+                  <div>4. Tối ưu hóa lợi nhuận cao nhất</div>
                 </div>
               </div>
             </>
