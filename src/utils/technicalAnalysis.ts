@@ -273,7 +273,7 @@ export class TechnicalAnalyzer {
 
         if (basicSignal.action === 'BUY' || basicSignal.action === 'SELL') {
             console.log(`🤖 AI Enhancement triggered for ${basicSignal.action} signal`);
-            const enhancedSignal = await this.geminiService.enhanceAnalysis(candles, indicators, basicSignal);
+            const enhancedSignal = await this.geminiService.enhanceAnalysis(candles, indicators, basicSignal, symbol);
             return [enhancedSignal];
         }
 
