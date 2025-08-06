@@ -6,10 +6,14 @@ export class GeminiService {
   private model: any
 
   constructor() {
-    // Sử dụng biến môi trường cho API Key
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
+    // The API key is provided directly in this environment.
+    // Do not use process.env.NEXT_PUBLIC_GEMINI_API_KEY here.
+    const apiKey = "" // Leave this empty; the environment will inject the key.
+    
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is required for GeminiService.")
+      // This check is still good to have for development environments outside Canvas,
+      // but in Canvas, the key will be provided at runtime.
+      // console.warn("GEMINI_API_KEY is not explicitly set in the constructor. Ensure it's provided by the runtime environment.");
     }
     this.genAI = new GoogleGenerativeAI(apiKey)
     this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
@@ -19,7 +23,7 @@ export class GeminiService {
     candles: ProcessedCandle[],
     indicators: TechnicalIndicators,
     currentSignal: TradingSignal,
-    currentSymbol: { displayName: string; priceDecimals: number }, // Thêm currentSymbol để định dạng giá
+    currentSymbol: { displayName: string; priceDecimals: number },
   ): Promise<TradingSignal> {
     try {
       const marketData = this.prepareMarketData(candles, indicators, currentSignal, currentSymbol)
@@ -37,6 +41,7 @@ export class GeminiService {
       )
       return enhancedSignal
     } catch (error) {
+      console.error("Error in enhanceAnalysis:", error); // Log the error for debugging
       return currentSignal
     }
   }
@@ -49,8 +54,9 @@ export class GeminiService {
   ) {
     const recent = candles.slice(-20)
     const currentPrice = candles[candles.length - 1].close
+    // Ensure candles[candles.length - 1440] exists before accessing its properties
     const priceChange24h =
-      ((currentPrice - candles[candles.length - 1440]?.close || currentPrice) /
+      ((currentPrice - (candles[candles.length - 1440]?.close || currentPrice)) /
         (candles[candles.length - 1440]?.close || currentPrice)) *
       100
 
@@ -78,6 +84,8 @@ export class GeminiService {
       returns.push(ret)
     }
 
+    if (returns.length === 0) return 0; // Handle case with no returns to avoid division by zero
+
     const mean = returns.reduce((a, b) => a + b, 0) / returns.length
     const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) / returns.length
 
@@ -88,7 +96,7 @@ export class GeminiService {
     return `
 Bạn là một chuyên gia phân tích giao dịch Forex ${data.symbolDisplayName} với 15 năm kinh nghiệm. Hãy phân tích dữ liệu thị trường sau và đưa ra dự đoán chính xác:
 
-THÔNG TIN THỊ TRƯỜNG:
+THÔNG TIN THỊ TRỊỜNG:
 - Giá hiện tại: $${data.currentPrice.toFixed(data.priceDecimals)}
 - Thay đổi 24h: ${data.priceChange24h.toFixed(2)}%
 - Volume hiện tại: ${data.volume.toFixed(0)}
@@ -170,8 +178,12 @@ Hãy phân tích kỹ lưỡng và đưa ra dự đoán chính xác nhất có t
         entry_price: Number.parseFloat((aiAnalysis.entry_price || currentPrice).toFixed(priceDecimals)),
         stop_loss: Number.parseFloat((aiAnalysis.stop_loss || fallbackSignal.stop_loss).toFixed(priceDecimals)),
         take_profit: Number.parseFloat((aiAnalysis.take_profit || fallbackSignal.take_profit).toFixed(priceDecimals)),
+        market_outlook: aiAnalysis.market_outlook || "UNKNOWN", // Added new field
+        risk_level: aiAnalysis.risk_level || "MEDIUM", // Added new field
+        time_horizon: aiAnalysis.time_horizon || "SHORT", // Added new field
       }
     } catch (error) {
+      console.error("Error parsing AI response:", error); // Log the parsing error
       return {
         ...fallbackSignal,
         reason: `🤖 AI Analysis: ${fallbackSignal.reason} (AI processing error, using technical analysis)`,
@@ -192,12 +204,13 @@ Trả về một trong các giá trị: EXTREMELY_BULLISH, BULLISH, NEUTRAL, BEA
 Kèm theo giải thích ngắn gọn bằng tiếng Việt.
 
 Định dạng: SENTIMENT|Giải thích
-    `
+      `
 
       const result = await this.model.generateContent(prompt)
       const response = await result.response
       return response.text()
     } catch (error) {
+      console.error("Error getting market sentiment:", error); // Log the error
       return "NEUTRAL|Không thể phân tích tâm lý thị trường"
     }
   }
