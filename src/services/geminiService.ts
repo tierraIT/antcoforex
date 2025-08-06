@@ -8,12 +8,10 @@ export class GeminiService {
   constructor() {
     // The API key is provided directly in this environment.
     // Do not use process.env.NEXT_PUBLIC_GEMINI_API_KEY here.
-    const apiKey = "" // Leave this empty; the environment will inject the key.
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || ""
     
     if (!apiKey) {
-      // This check is still good to have for development environments outside Canvas,
-      // but in Canvas, the key will be provided at runtime.
-      // console.warn("GEMINI_API_KEY is not explicitly set in the constructor. Ensure it's provided by the runtime environment.");
+      console.warn("GEMINI_API_KEY is not set. Please add NEXT_PUBLIC_GEMINI_API_KEY to your environment variables.");
     }
     this.genAI = new GoogleGenerativeAI(apiKey)
     this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
