@@ -8,7 +8,7 @@ export class GeminiService {
   constructor() {
     // The API key is provided directly in this environment.
     // Do not use process.env.NEXT_PUBLIC_GEMINI_API_KEY here.
-    const apiKey = ""
+    const apiKey = "AIzaSyDmML_8kM32pAy6Rr6WOwbbO8W-S5j_5Go"
     
     if (!apiKey) {
       console.warn("GEMINI_API_KEY is not set. Please add NEXT_PUBLIC_GEMINI_API_KEY to your environment variables.");
