@@ -130,22 +130,21 @@ YÊU CẦU PHÂN TÍCH:
 6. Giải thích lý do chi tiết
 7. Đề xuất giá vào lệnh, stop loss, take profit
 
-ĐỊNH DẠNG PHẢN HỒI (JSON):
-{
-"action": "BUY|SELL|HOLD",
-"confidence": số_từ_0_đến_100,
-"probability": số_từ_0_đến_100,
-"strength": "WEAK|MODERATE|STRONG|VERY_STRONG",
-"reason": "Giải thích chi tiết bằng tiếng Việt",
-"entry_price": giá_vào_lệnh,
-"stop_loss": giá_cắt_lỗ,
-"take_profit": giá_chốt_lời,
-"market_outlook": "BULLISH|BEARISH|SIDEWAYS",
-"risk_level": "LOW|MEDIUM|HIGH",
-"time_horizon": "SHORT|MEDIUM|LONG"
-}
+QUAN TRỌNG: Chỉ trả về một JSON object duy nhất, không có text hay markdown bổ sung. Định dạng chính xác:
 
-Hãy phân tích kỹ lưỡng và đưa ra dự đoán chính xác nhất có thể!
+{
+  "action": "BUY",
+  "confidence": 85,
+  "probability": 78,
+  "strength": "STRONG",
+  "reason": "Giải thích chi tiết bằng tiếng Việt",
+  "entry_price": 1.0850,
+  "stop_loss": 1.0800,
+  "take_profit": 1.0920,
+  "market_outlook": "BULLISH",
+  "risk_level": "MEDIUM",
+  "time_horizon": "SHORT"
+}
     `
   }
 
