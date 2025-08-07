@@ -193,7 +193,7 @@ Hãy phân tích kỹ lưỡng và đưa ra dự đoán chính xác nhất có t
   async getMarketSentiment(): Promise<string> {
     try {
       const prompt = `
-Phân tích tâm lý thị trường Forex hiện tại, tập trung vào cặp EUR/USD dựa trên:
+Phân tích tâm lý thị trường Forex hiện tại, tập trung vào cặp EUR/USDT dựa trên:
 - Tin tức kinh tế vĩ mô gần đây (lãi suất, lạm phát, việc làm của Mỹ và EU)
 - Xu hướng của chỉ số DXY (US Dollar Index)
 - Các sự kiện chính trị lớn ảnh hưởng đến EUR/USD
