@@ -9,6 +9,8 @@ import { RefreshCw, AlertTriangle, Wifi, WifiOff } from "lucide-react"
 import { TelegramService } from "@/services/telegramService"
 import { SymbolSelector } from "@/components/SymbolSelector"
 import { PriceChart } from "@/components/PriceChart"
+import { MarketOverview  } from "@/components/MarketOverview"
+
 // Các components cần import
 // import { PriceChart } from "@/components/PriceChart"
 // import { TradingSignals } from "@/components/TradingSignals"
