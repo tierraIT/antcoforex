@@ -86,7 +86,7 @@ function App() {
       (technicalSignal.action === 'BUY' || technicalSignal.action === 'SELL') &&
       technicalSignal.strength === 'STRONG' || technicalSignal.strength === 'VERY_STRONG'
     ) && (
-      technicalSignal.probability >= 70 && technicalSignal.confidence >= 65
+      technicalSignal.probability >= 45 && technicalSignal.confidence >= 65
     );
     
     const cooldownPassed = timeSinceLastTelegram > 120000; // 2 minutes cooldown
