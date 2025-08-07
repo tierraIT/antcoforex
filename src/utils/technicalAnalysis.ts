@@ -180,7 +180,7 @@ export class TechnicalAnalyzer {
                     confidence: 25,
                     timestamp: Date.now(),
                     reason: 'Insufficient data for analysis',
-                    probability: 50,
+                    probability: 35,
                     strength: 'WEAK',
                     entry_price: currentCandle ? currentCandle.close : 0,
                     stop_loss: currentCandle ? currentCandle.close : 0,
