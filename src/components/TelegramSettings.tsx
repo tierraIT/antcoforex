@@ -131,7 +131,7 @@ export const TelegramSettings: React.FC<TelegramSettingsProps> = ({
     <h4 className="text-sm font-medium text-gray-300 mb-2">📋 Auto-send Conditions</h4>
     <div className="text-xs text-gray-400 space-y-1">
       <div>• <strong>Strong Signal:</strong> STRONG/VERY_STRONG only</div>
-      <div>• <strong>Quality:</strong> Probability ≥45% AND Confidence ≥65%</div>
+      <div>• <strong>Quality:</strong> Probability ≥45% AND Confidence ≥73%</div>
       <div>• <strong>Technical Analysis:</strong> Based on indicators only</div>
       <div>• <strong>Cooldown:</strong> 1 phút giữa các tín hiệu</div>
       <div>• <strong>Reliability:</strong> Pure technical analysis signals</div>
