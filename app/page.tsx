@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo, useState, useEffect, useCallback } from "react"
 import { useBinanceData } from "@/hooks/useBinanceData"
 import { TechnicalAnalyzer } from "@/utils/technicalAnalysis"
