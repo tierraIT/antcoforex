@@ -84,7 +84,7 @@ function App() {
     // STEP 1: Detect strong signals from technical analysis
     const isStrongSignal = (
       (technicalSignal.action === 'BUY' || technicalSignal.action === 'SELL') &&
-      technicalSignal.strength === 'STRONG' || technicalSignal.strength === 'VERY_STRONG'
+      (technicalSignal.strength === 'STRONG' || technicalSignal.strength === 'VERY_STRONG')
     ) && (
       technicalSignal.probability >= 45 && technicalSignal.confidence >= 65
     );
@@ -249,8 +249,8 @@ function App() {
 
   // Show Gemini signal for display if recent
   const displaySignal = lastGeminiSignal && 
-                       (Date.now() - (lastGeminiSignal.timestamp || 0) < 60000) ? // Show Gemini result for 1 minute
-                       lastGeminiSignal : currentSignal;
+                        (Date.now() - (lastGeminiSignal.timestamp || 0) < 60000) ? // Show Gemini result for 1 minute
+                        lastGeminiSignal : currentSignal;
 
   // If displayAnalysis or indicators are still null, show insufficient data message
   if (!displayAnalysis || !indicators) {
