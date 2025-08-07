@@ -375,7 +375,7 @@ export class TechnicalAnalyzer {
             confidence = Math.min(50 + Math.abs(score) * 5, 95);
         } else {
             confidence = 25;
-            probability = 35;
+            probability = 30;
             strength = 'WEAK';
             reasons.push('Market is consolidating or lacking clear direction.');
         }
