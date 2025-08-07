@@ -364,13 +364,13 @@ export class TechnicalAnalyzer {
             action = 'SELL';
             if (score <= -12) {
                 strength = 'VERY_STRONG';
-                probability = 85;
+                probability = 60;
             } else if (score <= -9) {
                 strength = 'STRONG';
-                probability = 75;
+                probability = 45;
             } else {
                 strength = 'MODERATE';
-                probability = 65;
+                probability =35;
             }
             confidence = Math.min(50 + Math.abs(score) * 5, 95);
         } else {
