@@ -28,8 +28,8 @@ function App() {
   const { candles, loading, error, lastUpdate, isConnected, refetch } = useBinanceData(5000, currentSymbol);
 
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({
-    botToken: localStorage.getItem('telegram_bot_token') || '7578707048:AAG5Vr667I-3LerfhO1YzYbgTinXJwuHmAA',
-    chatId: localStorage.getItem('telegram_chat_id') || '-1002577959257',
+    botToken: localStorage.getItem('telegram_bot_token') || '',
+    chatId: localStorage.getItem('telegram_chat_id') || '',
     enabled: localStorage.getItem('telegram_enabled') !== 'false' // Default to true
   });
 
@@ -42,6 +42,7 @@ function App() {
     setTechnicalAnalysis(null);
     setLastTelegramSent(0);
     setGeminiProcessing(false);
+    setLastGeminiSignal(null);
   }, []);
 
   // Technical analysis from indicators only
@@ -63,12 +64,10 @@ function App() {
 
   // NEW FLOW: Detect strong signals -> Gemini final decision -> Telegram
   useEffect(() => {
-    // Check Telegram config
     if (!telegramConfig.enabled || !telegramConfig.botToken || !telegramConfig.chatId) {
       return;
     }
 
-    // Check technical analysis
     if (!technicalAnalysis || !technicalAnalysis.signals[0]) {
       return;
     }
@@ -89,23 +88,12 @@ function App() {
       technicalSignal.probability >= 45 && technicalSignal.confidence >= 65
     );
     
-    const cooldownPassed = timeSinceLastTelegram > 60000; // 1 minutes cooldown
+    const cooldownPassed = timeSinceLastTelegram > 60000; // 1 minute cooldown
     const shouldProcessWithGemini = isStrongSignal && cooldownPassed && !geminiProcessing;
-
-    console.log('🔍 Strong Signal Detection:', {
-      signal: technicalSignal.action,
-      strength: technicalSignal.strength,
-      probability: technicalSignal.probability,
-      confidence: technicalSignal.confidence,
-      isStrongSignal,
-      cooldownPassed,
-      shouldProcessWithGemini
-    });
 
     if (!shouldProcessWithGemini) {
       return;
     }
-
 
     // STEP 2: Use Gemini for final decision and send to Telegram
     const processWithGemini = async () => {
@@ -117,9 +105,9 @@ function App() {
         const indicators = TechnicalAnalyzer.getTechnicalIndicators(candles);
         const geminiSignal = await TechnicalAnalyzer.getGeminiFinalDecision(
           candles,
-          (technicalSignal.strength === 'STRONG' || technicalSignal.strength === 'VERY_STRONG'),
+          indicators,
           technicalSignal,
-          technicalSignal.probability >= 70 && technicalSignal.confidence >= 65
+          currentSymbol,
         );
 
         setLastGeminiSignal(geminiSignal);
@@ -144,8 +132,6 @@ function App() {
         } else {
           console.log('🚫 Gemini decided HOLD - not sending to Telegram');
         }
-
-
 
       } catch (error) {
         console.error('🤖 Gemini processing failed:', error);
@@ -179,18 +165,15 @@ function App() {
     return ((current - previous) / previous) * 100;
   }, [candles]);
 
-  // Handle Telegram config changes
   const handleTelegramConfigChange = useCallback((config: TelegramConfig) => {
     setTelegramConfig(config);
     telegramService.updateConfig(config);
 
-    // Save to localStorage
     localStorage.setItem('telegram_bot_token', config.botToken);
     localStorage.setItem('telegram_chat_id', config.chatId);
     localStorage.setItem('telegram_enabled', config.enabled.toString());
   }, [telegramService]);
 
-  // Send test message
   const handleTestMessage = useCallback(async () => {
     const testSignal: TradingSignal = {
       action: 'BUY',
@@ -212,7 +195,6 @@ function App() {
     }
   }, [telegramService, candles, currentSymbol]);
 
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -224,7 +206,6 @@ function App() {
     );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -243,16 +224,13 @@ function App() {
     );
   }
 
-  // Use technical analysis as main display
   const displayAnalysis = technicalAnalysis;
   const currentSignal = displayAnalysis?.signals[0];
 
-  // Show Gemini signal for display if recent
   const displaySignal = lastGeminiSignal && 
-                        (Date.now() - (lastGeminiSignal.timestamp || 0) < 60000) ? // Show Gemini result for 1 minute
+                        (Date.now() - (lastGeminiSignal.timestamp || 0) < 60000) ? 
                         lastGeminiSignal : currentSignal;
 
-  // If displayAnalysis or indicators are still null, show insufficient data message
   if (!displayAnalysis || !indicators) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
