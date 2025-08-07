@@ -89,7 +89,7 @@ function App() {
       technicalSignal.probability >= 45 && technicalSignal.confidence >= 65
     );
     
-    const cooldownPassed = timeSinceLastTelegram > 60000; // 2 minutes cooldown
+    const cooldownPassed = timeSinceLastTelegram > 60000; // 1 minutes cooldown
     const shouldProcessWithGemini = isStrongSignal && cooldownPassed && !geminiProcessing;
 
     console.log('🔍 Strong Signal Detection:', {
