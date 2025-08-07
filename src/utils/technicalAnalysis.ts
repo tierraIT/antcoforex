@@ -1,9 +1,7 @@
 import { ProcessedCandle, TechnicalIndicators, TradingSignal, MarketAnalysis, TradingSymbol } from '../types/trading';
-import { GeminiService } from '../services/geminiService';
 
 export class TechnicalAnalyzer {
-    private static geminiService = new GeminiService();
-
+    // Các phương thức tính toán chỉ báo kỹ thuật (SMA, EMA, RSI, MACD, ATR,...) giữ nguyên
     static calculateSMA(data: number[], period: number): number {
         if (data.length < period) return 0;
         const sum = data.slice(-period).reduce((a, b) => a + b, 0);
@@ -170,7 +168,7 @@ export class TechnicalAnalyzer {
         };
     }
 
-    static analyzeMarket(candles: ProcessedCandle[]): MarketAnalysis {
+    static analyzeMarket(candles: ProcessedCandle[], symbol?: TradingSymbol): MarketAnalysis {
         const currentCandle = candles[candles.length - 1];
 
         if (candles.length < 50 || !currentCandle) {
@@ -221,7 +219,7 @@ export class TechnicalAnalyzer {
         if (volatility > 0.005) volatilityLevel = 'HIGH';
         else if (volatility < 0.001) volatilityLevel = 'LOW';
 
-        const signals = this.generateTradingSignals(candles, indicators, currentPrice, trend, momentum);
+        const signals = this.generateTradingSignals(candles, indicators, currentPrice, trend, momentum, symbol);
 
         return {
             trend,
@@ -256,27 +254,7 @@ export class TechnicalAnalyzer {
         const signal = this.calculateCurrentTickSignal(candles, indicators, currentPrice, trend, momentum, symbol);
         return [signal];
     }
-
-    static async getGeminiFinalDecision(
-        candles: ProcessedCandle[],
-        indicators: TechnicalIndicators,
-        technicalSignal: TradingSignal,
-        symbol?: TradingSymbol
-    ): Promise<TradingSignal> {
-        try {
-            console.log(`🤖 Gemini final decision for ${technicalSignal.action} signal`);
-            const geminiSignal = await this.geminiService.enhanceAnalysis(candles, indicators, technicalSignal, symbol);
-            return geminiSignal;
-        } catch (error) {
-            console.error('Gemini decision failed:', error);
-            // Return technical signal as fallback
-            return {
-                ...technicalSignal,
-                reason: `${technicalSignal.reason} (Gemini unavailable - using technical analysis)`
-            };
-        }
-    }
-
+    
     static calculateCurrentTickSignal(
         candles: ProcessedCandle[],
         indicators: TechnicalIndicators,
