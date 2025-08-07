@@ -32,82 +32,17 @@ export default function Home() {
     enabled: false,
   })
 
-  // Đã xóa trạng thái `telegramService` khỏi đây để đồng bộ hơn. Bạn cần khởi tạo nó một lần trong `useEffect`.
-  // Thay thế bằng một instance đơn giản hoặc sử dụng Context nếu cần.
-
   const [lastSignalSent, setLastSignalSent] = useState<number>(0)
 
   const handleSymbolChange = useCallback((symbol: TradingSymbol) => {
     setCurrentSymbol(symbol)
     localStorage.setItem("selected_symbol", JSON.stringify(symbol))
-    setBaseAnalysis(null)
-    setEnhancedAnalysis(null)
   }, [])
 
-  const [baseAnalysis, setBaseAnalysis] = useState<MarketAnalysis | null>(null)
-  const [enhancedAnalysis, setEnhancedAnalysis] = useState<MarketAnalysis | null>(null)
-  const [aiProcessing, setAiProcessing] = useState(false)
-  const [lastAiCall, setLastAiCall] = useState<number>(0)
-
-  useEffect(() => {
-    if (candles.length === 0) {
-      setBaseAnalysis(null)
-      return
-    }
-    setBaseAnalysis(TechnicalAnalyzer.analyzeMarket(candles))
-  }, [candles])
-
-  useEffect(() => {
-    if (!baseAnalysis || candles.length === 0) {
-      setEnhancedAnalysis(null)
-      return
-    }
-
-    const currentSignal = baseAnalysis.signals[0];
-    const timeSinceLastAI = Date.now() - lastAiCall;
-
-    const isStrongSignal = (
-      (currentSignal.action === 'BUY' || currentSignal.action === 'SELL') &&
-      (currentSignal.strength === 'STRONG' || currentSignal.strength === 'VERY_STRONG')
-    ) && (
-      currentSignal.probability >= 45 && currentSignal.confidence >= 65
-    );
-    
-    const cooldownPassed = timeSinceLastAI > 60000; // 1 phút cooldown cho AI
-    const shouldCallAI = isStrongSignal && cooldownPassed && !aiProcessing;
-
-    if (!shouldCallAI) {
-      setEnhancedAnalysis(baseAnalysis)
-      return
-    }
-
-    const enhanceWithAI = async () => {
-      setAiProcessing(true)
-      setLastAiCall(Date.now())
-
-      try {
-        const indicators = TechnicalAnalyzer.getTechnicalIndicators(candles)
-        const geminiSignal = await TechnicalAnalyzer.getGeminiFinalDecision(
-          candles,
-          indicators,
-          currentSignal,
-          currentSymbol,
-        )
-
-        const finalAnalysis = {
-          ...baseAnalysis,
-          signals: [geminiSignal],
-        }
-        setEnhancedAnalysis(finalAnalysis)
-      } catch (error) {
-        setEnhancedAnalysis(baseAnalysis)
-      } finally {
-        setAiProcessing(false)
-      }
-    }
-
-    enhanceWithAI()
-  }, [baseAnalysis, candles, lastAiCall, currentSymbol])
+  const analysis = useMemo(() => {
+    if (candles.length === 0) return null;
+    return TechnicalAnalyzer.analyzeMarket(candles, currentSymbol);
+  }, [candles, currentSymbol]);
 
   const indicators = useMemo(() => {
     if (candles.length === 0) return null
@@ -121,7 +56,6 @@ export default function Home() {
     return ((current - previous) / previous) * 100
   }, [candles])
 
-  // Cần khởi tạo TelegramService trong useEffect để lấy config từ localStorage
   const [telegramService, setTelegramService] = useState<TelegramService | null>(null);
 
   useEffect(() => {
@@ -175,21 +109,21 @@ export default function Home() {
 
   // Logic tự động gửi Telegram
   useEffect(() => {
-    if (!enhancedAnalysis || !telegramConfig.enabled || !telegramService) {
+    if (!analysis || !telegramConfig.enabled || !telegramService) {
       return
     }
 
-    const currentSignal = enhancedAnalysis.signals[0]
+    const currentSignal = analysis.signals[0]
     if (!currentSignal) {
       return
     }
 
     const timeSinceLastSignal = Date.now() - lastSignalSent
-    const isHighProbabilityFromAI = currentSignal.probability >= 70
+    const isHighProbability = currentSignal.probability >= 70
     const isActionable = currentSignal.action === "BUY" || currentSignal.action === "SELL"
     const cooldownPassed = timeSinceLastSignal > 60000
 
-    const shouldSend = isHighProbabilityFromAI && isActionable && cooldownPassed
+    const shouldSend = isHighProbability && isActionable && cooldownPassed
 
     if (shouldSend) {
       const currentPrice = candles[candles.length - 1].close
@@ -199,7 +133,7 @@ export default function Home() {
         }
       })
     }
-  }, [enhancedAnalysis, telegramConfig.enabled, telegramService, candles, lastSignalSent])
+  }, [analysis, telegramConfig.enabled, telegramService, candles, lastSignalSent])
 
   if (loading) {
     return (
@@ -230,10 +164,7 @@ export default function Home() {
     )
   }
 
-  const displayAnalysis = enhancedAnalysis || baseAnalysis
-  const displaySignal = displayAnalysis?.signals[0]
-
-  if (!displayAnalysis || !indicators) {
+  if (!analysis || !indicators) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
@@ -253,34 +184,11 @@ export default function Home() {
           <div>
             <h1 className="text-2xl font-bold">Lụm lúa cùng Tiến Anh</h1>
             <div className="flex items-center space-x-2">
-              <p className="text-gray-400 text-sm">Antco AI</p>
-              {aiProcessing && (
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-blue-400">🤖 AI Đang phân tích...</span>
-                </div>
-              )}
-              {/* Cập nhật hiển thị trạng thái AI */}
-              {!aiProcessing && enhancedAnalysis?.signals[0] && enhancedAnalysis?.signals[0].action !== baseAnalysis?.signals[0].action && (
-                <div className="flex items-center space-x-2 bg-yellow-900/50 border border-yellow-700 px-2 py-1 rounded">
-                  <AlertTriangle className="w-4 h-4 text-yellow-400" />
-                  <span className="text-xs text-yellow-300 font-semibold">
-                    Xung đột: TA đề xuất {baseAnalysis?.signals[0].action} nhưng AI quyết định {enhancedAnalysis?.signals[0].action}
-                  </span>
-                </div>
-              )}
-              {!aiProcessing && enhancedAnalysis && enhancedAnalysis?.signals[0].action === baseAnalysis?.signals[0].action && (
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-xs text-green-400">✅ AI đã xác nhận</span>
-                </div>
-              )}
-              {!aiProcessing && !enhancedAnalysis && baseAnalysis && (
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                  <span className="text-xs text-gray-400">Chỉ dùng Phân tích Kỹ thuật</span>
-                </div>
-              )}
+              <p className="text-gray-400 text-sm">Technical Analysis</p>
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                <span className="text-xs text-blue-400">📊 Phân tích kỹ thuật</span>
+              </div>
             </div>
           </div>
           <div className="text-right">
@@ -315,14 +223,14 @@ export default function Home() {
               symbol={currentSymbol}
               width={800}
               height={400}
-              signals={displayAnalysis?.signals || []}
+              signals={analysis?.signals || []}
             />
           </div>
 
           {/* Right Column - Market Overview */}
           <div>
             <MarketOverview
-              analysis={displayAnalysis}
+              analysis={analysis}
               indicators={indicators}
               symbol={currentSymbol}
               currentPrice={currentPrice}
@@ -333,7 +241,7 @@ export default function Home() {
 
         {/* Trading Signals */}
         <div className="mt-6">
-          <TradingSignals signals={displayAnalysis?.signals || []} symbol={currentSymbol} />
+          <TradingSignals signals={analysis?.signals || []} symbol={currentSymbol} />
         </div>
 
         {/* Telegram Settings */}

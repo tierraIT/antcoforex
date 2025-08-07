@@ -1,7 +1,6 @@
 import { ProcessedCandle, TechnicalIndicators, TradingSignal, MarketAnalysis, TradingSymbol } from '../types/trading';
 
 export class TechnicalAnalyzer {
-    // Các phương thức tính toán chỉ báo kỹ thuật (SMA, EMA, RSI, MACD, ATR,...) giữ nguyên
     static calculateSMA(data: number[], period: number): number {
         if (data.length < period) return 0;
         const sum = data.slice(-period).reduce((a, b) => a + b, 0);
@@ -352,26 +351,26 @@ export class TechnicalAnalyzer {
             action = 'BUY';
             if (score >= 12) {
                 strength = 'VERY_STRONG';
-                probability = 75;
+                probability = 85;
             } else if (score >= 9) {
                 strength = 'STRONG';
-                probability = 65;
+                probability = 75;
             } else {
                 strength = 'MODERATE';
-                probability = 55;
+                probability = 65;
             }
             confidence = Math.min(50 + score * 5, 95);
         } else if (score <= -6) {
             action = 'SELL';
             if (score <= -12) {
                 strength = 'VERY_STRONG';
-                probability = 75;
+                probability = 85;
             } else if (score <= -9) {
                 strength = 'STRONG';
-                probability = 65;
+                probability = 75;
             } else {
                 strength = 'MODERATE';
-                probability = 55;
+                probability = 65;
             }
             confidence = Math.min(50 + Math.abs(score) * 5, 95);
         } else {
@@ -417,7 +416,7 @@ export class TechnicalAnalyzer {
     }
 
     static calculateHistoricalAccuracy(candles: ProcessedCandle[], indicators: TechnicalIndicators): number {
-        let accuracy = 0.75;
+        let accuracy = 0.85;
 
         if (indicators.rsi >= 65 || indicators.rsi <= 35) {
             accuracy += 0.1;

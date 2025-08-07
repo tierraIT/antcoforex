@@ -61,7 +61,6 @@ export interface TelegramConfig {
   botToken: string;
   chatId: string;
   enabled: boolean;
-  aiConfirmationLevel?: 'STRICT' | 'STANDARD' | 'PERMISSIVE';
 }
 
 export interface PredictionModel {
