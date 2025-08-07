@@ -404,10 +404,10 @@ export class TechnicalAnalyzer {
             action = 'BUY';
             if (score >= 12) {
                 strength = 'VERY_STRONG';
-                probability = 85;
+                probability = 75;
             } else if (score >= 9) {
                 strength = 'STRONG';
-                probability = 75;
+                probability = 55;
             } else {
                 strength = 'MODERATE';
                 probability = 60;
