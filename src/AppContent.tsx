@@ -80,7 +80,7 @@ export function AppContent() {
 
     // Define conditions for calling AI
     const isActionable = currentSignal && (currentSignal.action === "BUY" || currentSignal.action === "SELL")
-    const isHighProbability = currentSignal && currentSignal.probability >= 75 // Using 75% probability as threshold
+    const isHighProbability = currentSignal && currentSignal.probability >= 45 // Using 75% probability as threshold
     const timeSinceLastAI = Date.now() - lastAiCall
     const cooldownPassedForAI = timeSinceLastAI > 1000 // 1 second cooldown for AI calls
 
