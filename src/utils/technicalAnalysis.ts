@@ -407,7 +407,7 @@ export class TechnicalAnalyzer {
                 probability = 75;
             } else if (score >= 9) {
                 strength = 'STRONG';
-                probability = 55;
+                probability = 50;
             } else {
                 strength = 'MODERATE';
                 probability = 40;
