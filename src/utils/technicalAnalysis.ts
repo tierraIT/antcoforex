@@ -410,7 +410,7 @@ export class TechnicalAnalyzer {
                 probability = 55;
             } else {
                 strength = 'MODERATE';
-                probability = 60;
+                probability = 40;
             }
             confidence = Math.min(50 + score * 5, 95);
         } else if (score <= -6) {
