@@ -8,7 +8,6 @@ interface TradingSignalsProps {
 }
 
 export const TradingSignals: React.FC<TradingSignalsProps> = ({ signals = [], symbol }) => {
-  // Add safety check for signals array
   if (!signals || !Array.isArray(signals) || signals.length === 0) {
     return (
       <div className="bg-gray-800 rounded-lg p-4">
@@ -139,4 +138,3 @@ export const TradingSignals: React.FC<TradingSignalsProps> = ({ signals = [], sy
     </div>
   )
 }
-// Removed export default TradingSignals
