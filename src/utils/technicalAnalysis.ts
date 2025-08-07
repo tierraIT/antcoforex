@@ -126,7 +126,6 @@ export class TechnicalAnalyzer {
         const currentVolume = volumes[volumes.length - 1];
         const avgVolume = volumes.length >= 20 ? volumes.slice(-20).reduce((sum, v) => sum + v, 0) / 20 : 0;
 
-        // Determine trend
         let trend: 'BULLISH' | 'BEARISH' | 'SIDEWAYS' | 'UNDEFINED' = 'SIDEWAYS';
         if (!isNaN(ema12) && !isNaN(ema26) && !isNaN(sma20) && sma50 !== 0) {
             if (ema12 > ema26 && currentPrice > sma20 && currentPrice > sma50) {
@@ -138,7 +137,6 @@ export class TechnicalAnalyzer {
             trend = 'UNDEFINED';
         }
 
-        // Determine momentum
         let momentum: 'STRONG_UP' | 'UP' | 'NEUTRAL' | 'DOWN' | 'STRONG_DOWN' | 'UNDEFINED' = 'NEUTRAL';
         const priceChange = ((currentPrice - candles[candles.length - 2]?.close) / candles[candles.length - 2]?.close) * 100 || 0;
 
@@ -218,13 +216,11 @@ export class TechnicalAnalyzer {
         const trend = indicators.trend;
         const momentum = indicators.momentum;
 
-        // Determine volatility
         const volatility = this.calculateVolatility(candles);
         let volatilityLevel: 'HIGH' | 'MEDIUM' | 'LOW' = 'MEDIUM';
         if (volatility > 0.005) volatilityLevel = 'HIGH';
         else if (volatility < 0.001) volatilityLevel = 'LOW';
 
-        // Generate trading signals
         const signals = this.generateTradingSignals(candles, indicators, currentPrice, trend, momentum);
 
         return {
@@ -259,32 +255,6 @@ export class TechnicalAnalyzer {
     ): TradingSignal[] {
         const signal = this.calculateCurrentTickSignal(candles, indicators, currentPrice, trend, momentum, symbol);
         return [signal];
-    }
-
-    static async generateEnhancedTradingSignals(
-        candles: ProcessedCandle[],
-        indicators: TechnicalIndicators,
-        trend: string,
-        momentum: string,
-        symbol?: TradingSymbol
-    ): Promise<TradingSignal[]> {
-        const currentPrice = candles[candles.length - 1].close;
-        const basicSignal = this.calculateCurrentTickSignal(candles, indicators, currentPrice, trend, momentum, symbol);
-
-        // Only enhance signals that meet strong criteria
-        const isStrongSignal = (
-            (basicSignal.action === 'BUY' || basicSignal.action === 'SELL') &&
-            (basicSignal.strength === 'STRONG' || basicSignal.strength === 'VERY_STRONG') &&
-            basicSignal.probability >= 70 && basicSignal.confidence >= 65
-        );
-        
-        if (isStrongSignal) {
-            console.log(`🤖 AI Enhancement triggered for ${basicSignal.action} signal`);
-            const enhancedSignal = await this.geminiService.enhanceAnalysis(candles, indicators, basicSignal, symbol);
-            return [enhancedSignal];
-        }
-
-        return [basicSignal];
     }
 
     static async getGeminiFinalDecision(
@@ -407,10 +377,10 @@ export class TechnicalAnalyzer {
                 probability = 75;
             } else if (score >= 9) {
                 strength = 'STRONG';
-                probability = 50;
+                probability = 65;
             } else {
                 strength = 'MODERATE';
-                probability = 40;
+                probability = 55;
             }
             confidence = Math.min(50 + score * 5, 95);
         } else if (score <= -6) {
@@ -420,10 +390,10 @@ export class TechnicalAnalyzer {
                 probability = 75;
             } else if (score <= -9) {
                 strength = 'STRONG';
-                probability = 50;
+                probability = 65;
             } else {
                 strength = 'MODERATE';
-                probability = 40;
+                probability = 55;
             }
             confidence = Math.min(50 + Math.abs(score) * 5, 95);
         } else {
@@ -433,11 +403,9 @@ export class TechnicalAnalyzer {
             reasons.push('Market is consolidating or lacking clear direction.');
         }
 
-        // Apply historical accuracy
         const historicalAccuracy = this.calculateHistoricalAccuracy(candles, indicators);
         probability = Math.round(probability * historicalAccuracy);
 
-        // Calculate Stop Loss and Take Profit
         const atr = indicators.atr && !isNaN(indicators.atr) && indicators.atr > 0 ? indicators.atr : 0.00005;
         const riskRewardRatio = 1.5;
         const atrMultiplier = isForex ? 1.2 : (isCrypto ? 1.5 : 1.4);
