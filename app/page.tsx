@@ -7,7 +7,7 @@ import type { TelegramConfig, TradingSignal, MarketAnalysis, TradingSymbol } fro
 import { DEFAULT_SYMBOL } from "@/config/symbols"
 import { RefreshCw, AlertTriangle, Wifi, WifiOff } from "lucide-react"
 import { TelegramService } from "@/services/telegramService"
-
+import { SymbolSelector } from "@/components/SymbolSelector"
 // Các components cần import
 // import { PriceChart } from "@/components/PriceChart"
 // import { TradingSignals } from "@/components/TradingSignals"
