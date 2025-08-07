@@ -271,7 +271,14 @@ export class TechnicalAnalyzer {
         const currentPrice = candles[candles.length - 1].close;
         const basicSignal = this.calculateCurrentTickSignal(candles, indicators, currentPrice, trend, momentum, symbol);
 
-        if (basicSignal.action === 'BUY' || basicSignal.action === 'SELL') {
+        // Only enhance signals that meet strong criteria
+        const isStrongSignal = (
+            (basicSignal.action === 'BUY' || basicSignal.action === 'SELL') &&
+            (basicSignal.strength === 'STRONG' || basicSignal.strength === 'VERY_STRONG') &&
+            basicSignal.probability >= 70 && basicSignal.confidence >= 65
+        );
+        
+        if (isStrongSignal) {
             console.log(`🤖 AI Enhancement triggered for ${basicSignal.action} signal`);
             const enhancedSignal = await this.geminiService.enhanceAnalysis(candles, indicators, basicSignal, symbol);
             return [enhancedSignal];

@@ -209,7 +209,7 @@ export default function Home() {
 
     // Điều kiện gửi Telegram: AI đã xác nhận với xác suất cao, có thể hành động, và đã qua thời gian chờ
     const timeSinceLastSignal = Date.now() - lastSignalSent
-    const isHighProbabilityFromAI = currentSignal.probability >= 75 // Xác suất cao từ AI
+    const isHighProbabilityFromAI = currentSignal.probability >= 70 // Xác suất cao từ AI
     const isActionable = currentSignal.action === "BUY" || currentSignal.action === "SELL" // Tín hiệu có thể hành động
     const cooldownPassed = timeSinceLastSignal > 60000 // 1 phút cooldown
 

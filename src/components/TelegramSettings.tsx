@@ -148,7 +148,7 @@ export const TelegramSettings: React.FC<TelegramSettingsProps> = ({
                   <div>• <strong>Strong Signal:</strong> STRONG/VERY_STRONG only</div>
                   <div>• <strong>Quality:</strong> Probability ≥70% AND Confidence ≥65%</div>
                   <div>• <strong>Gemini Decision:</strong> Final BUY/SELL confirmation</div>
-                  <div>• <strong>Cooldown:</strong> 2 phút giữa các tín hiệu</div>
+                  <div>• <strong>Cooldown:</strong> 1 phút giữa các tín hiệu</div>
                   <div>• <strong>Fallback:</strong> Gửi TA signal nếu Gemini fail</div>
                 </div>
               </div>

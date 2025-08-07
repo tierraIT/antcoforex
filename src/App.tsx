@@ -117,9 +117,9 @@ function App() {
         const indicators = TechnicalAnalyzer.getTechnicalIndicators(candles);
         const geminiSignal = await TechnicalAnalyzer.getGeminiFinalDecision(
           candles,
-          indicators,
+          (technicalSignal.strength === 'STRONG' || technicalSignal.strength === 'VERY_STRONG')
           technicalSignal,
-          currentSymbol
+          technicalSignal.probability >= 70 && technicalSignal.confidence >= 65
         );
 
         setLastGeminiSignal(geminiSignal);
