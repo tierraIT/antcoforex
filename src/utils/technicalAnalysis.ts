@@ -200,7 +200,7 @@ export class TechnicalAnalyzer {
                     confidence: 25,
                     timestamp: Date.now(),
                     reason: 'Failed to calculate indicators.',
-                    probability: 50,
+                    probability: 40,
                     strength: 'WEAK',
                     entry_price: currentCandle.close,
                     stop_loss: currentCandle.close,
