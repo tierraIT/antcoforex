@@ -11,6 +11,7 @@ import { SymbolSelector } from "@/components/SymbolSelector"
 import { PriceChart } from "@/components/PriceChart"
 import { MarketOverview } from "@/components/MarketOverview"
 import { TradingSignals } from "@/components/TradingSignals"
+import { TelegramSettings } from "@/components/TelegramSettings"
 
 // Các components cần import
 // import { PriceChart } from "@/components/PriceChart"
