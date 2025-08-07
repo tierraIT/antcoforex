@@ -119,7 +119,7 @@ export default function Home() {
     }
 
     const timeSinceLastSignal = Date.now() - lastSignalSent
-    const isHighProbability = currentSignal.probability >= 70
+    const isHighProbability = currentSignal.probability >= 45
     const isActionable = currentSignal.action === "BUY" || currentSignal.action === "SELL"
     const cooldownPassed = timeSinceLastSignal > 60000
 
