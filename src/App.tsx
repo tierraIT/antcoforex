@@ -7,22 +7,18 @@ import { MarketOverview } from './components/MarketOverview';
 import { TelegramSettings } from './components/TelegramSettings';
 import { SymbolSelector } from './components/SymbolSelector';
 import { TelegramService } from './services/telegramService';
-import { TelegramConfig, TradingSignal, MarketAnalysis, TradingSymbol } from './types/trading';
+import { TelegramConfig, TradingSignal, TradingSymbol } from './types/trading';
 import { DEFAULT_SYMBOL } from './config/symbols';
 import { RefreshCw, AlertTriangle, Wifi, WifiOff } from 'lucide-react';
 
 function App() {
-  // Symbol state
   const [currentSymbol, setCurrentSymbol] = useState<TradingSymbol>(() => {
     const savedSymbol = localStorage.getItem('selected_symbol');
-    if (savedSymbol) {
-      try {
-        return JSON.parse(savedSymbol);
-      } catch {
-        return DEFAULT_SYMBOL;
-      }
+    try {
+      return savedSymbol ? JSON.parse(savedSymbol) : DEFAULT_SYMBOL;
+    } catch {
+      return DEFAULT_SYMBOL;
     }
-    return DEFAULT_SYMBOL;
   });
 
   const { candles, loading, error, lastUpdate, isConnected, refetch } = useBinanceData(5000, currentSymbol);
@@ -30,39 +26,24 @@ function App() {
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({
     botToken: localStorage.getItem('telegram_bot_token') || '',
     chatId: localStorage.getItem('telegram_chat_id') || '',
-    enabled: localStorage.getItem('telegram_enabled') !== 'false' // Default to true
+    enabled: localStorage.getItem('telegram_enabled') !== 'false'
   });
 
   const [telegramService] = useState(() => new TelegramService(telegramConfig));
+  const [lastTelegramSent, setLastTelegramSent] = useState<number>(0);
 
-  // Handle symbol change
   const handleSymbolChange = useCallback((symbol: TradingSymbol) => {
     setCurrentSymbol(symbol);
     localStorage.setItem('selected_symbol', JSON.stringify(symbol));
-    setTechnicalAnalysis(null);
     setLastTelegramSent(0);
-    setGeminiProcessing(false);
-    setLastGeminiSignal(null);
   }, []);
 
-  // Technical analysis from indicators only
-  const [technicalAnalysis, setTechnicalAnalysis] = useState<MarketAnalysis | null>(null);
+  const technicalAnalysis = useMemo(() => {
+    if (candles.length === 0) return null;
+    return TechnicalAnalyzer.analyzeMarket(candles, currentSymbol);
+  }, [candles, currentSymbol]);
 
-  // Gemini and Telegram states
-  const [geminiProcessing, setGeminiProcessing] = useState(false);
-  const [lastTelegramSent, setLastTelegramSent] = useState<number>(0);
-  const [lastGeminiSignal, setLastGeminiSignal] = useState<TradingSignal | null>(null);
-
-  // Update technical analysis whenever candles change
-  useEffect(() => {
-    if (candles.length === 0) {
-      setTechnicalAnalysis(null);
-      return;
-    }
-    setTechnicalAnalysis(TechnicalAnalyzer.analyzeMarket(candles));
-  }, [candles]);
-
-  // NEW FLOW: Detect strong signals -> Gemini final decision -> Telegram
+  // Logic gửi tín hiệu Telegram
   useEffect(() => {
     if (!telegramConfig.enabled || !telegramConfig.botToken || !telegramConfig.chatId) {
       return;
@@ -79,79 +60,27 @@ function App() {
     if (!currentPrice) {
       return;
     }
-
-    // STEP 1: Detect strong signals from technical analysis
+    
+    // Chỉ gửi tín hiệu mạnh sau một khoảng thời gian cooldown
     const isStrongSignal = (
       (technicalSignal.action === 'BUY' || technicalSignal.action === 'SELL') &&
       (technicalSignal.strength === 'STRONG' || technicalSignal.strength === 'VERY_STRONG')
-    ) && (
-      technicalSignal.probability >= 45 && technicalSignal.confidence >= 65
     );
-    
-    const cooldownPassed = timeSinceLastTelegram > 60000; // 1 minute cooldown
-    const shouldProcessWithGemini = isStrongSignal && cooldownPassed && !geminiProcessing;
+    const cooldownPassed = timeSinceLastTelegram > 60000; // 1 phút cooldown
 
-    if (!shouldProcessWithGemini) {
-      return;
-    }
-
-    // STEP 2: Use Gemini for final decision and send to Telegram
-    const processWithGemini = async () => {
-      setGeminiProcessing(true);
-      
-      try {
-        console.log('🤖 Gemini Final Decision - Processing strong signal...');
-        
-        const indicators = TechnicalAnalyzer.getTechnicalIndicators(candles);
-        const geminiSignal = await TechnicalAnalyzer.getGeminiFinalDecision(
-          candles,
-          indicators,
-          technicalSignal,
-          currentSymbol,
-        );
-
-        setLastGeminiSignal(geminiSignal);
-
-        console.log('🤖 Gemini Decision:', {
-          technicalAction: technicalSignal.action,
-          geminiAction: geminiSignal.action,
-          geminiConfidence: geminiSignal.confidence,
-          geminiProbability: geminiSignal.probability
-        });
-
-        // STEP 3: Send to Telegram if Gemini confirms
-        if (geminiSignal.action === 'BUY' || geminiSignal.action === 'SELL') {
-          const success = await telegramService.sendTradingAlert(geminiSignal, currentPrice);
-          
-          if (success) {
-            setLastTelegramSent(Date.now());
-            console.log('📱 Telegram alert sent successfully');
-          } else {
-            console.log('❌ Failed to send Telegram alert');
-          }
-        } else {
-          console.log('🚫 Gemini decided HOLD - not sending to Telegram');
-        }
-
-      } catch (error) {
-        console.error('🤖 Gemini processing failed:', error);
-        
-        // Fallback: Send technical signal if Gemini fails
-        console.log('📱 Fallback: Sending technical signal to Telegram');
+    if (isStrongSignal && cooldownPassed) {
+      const sendAlert = async () => {
         const success = await telegramService.sendTradingAlert(technicalSignal, currentPrice);
-        
         if (success) {
           setLastTelegramSent(Date.now());
-          console.log('📱 Fallback Telegram alert sent');
+          console.log('📱 Telegram alert sent successfully');
+        } else {
+          console.log('❌ Failed to send Telegram alert');
         }
-      } finally {
-        setGeminiProcessing(false);
-      }
-    };
-
-    processWithGemini();
-
-  }, [technicalAnalysis, telegramConfig, candles, lastTelegramSent, telegramService, currentSymbol, geminiProcessing]);
+      };
+      sendAlert();
+    }
+  }, [technicalAnalysis, telegramConfig, candles, lastTelegramSent, telegramService]);
 
   const indicators = useMemo(() => {
     if (candles.length === 0) return null;
@@ -168,7 +97,6 @@ function App() {
   const handleTelegramConfigChange = useCallback((config: TelegramConfig) => {
     setTelegramConfig(config);
     telegramService.updateConfig(config);
-
     localStorage.setItem('telegram_bot_token', config.botToken);
     localStorage.setItem('telegram_chat_id', config.chatId);
     localStorage.setItem('telegram_enabled', config.enabled.toString());
@@ -225,12 +153,6 @@ function App() {
   }
 
   const displayAnalysis = technicalAnalysis;
-  const currentSignal = displayAnalysis?.signals[0];
-
-  const displaySignal = lastGeminiSignal && 
-                        (Date.now() - (lastGeminiSignal.timestamp || 0) < 60000) ? 
-                        lastGeminiSignal : currentSignal;
-
   if (!displayAnalysis || !indicators) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -241,49 +163,25 @@ function App() {
     );
   }
 
-  const currentPrice = candles[candles.length - 1].close;
+  const currentPrice = candles[candles.length - 1]?.close;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Lụm lúa cùng Tiến Anh</h1>
             <div className="flex items-center space-x-2">
               <p className="text-gray-400 text-sm">Antco AI</p>
-              
-              {/* Gemini Processing Status */}
-              {geminiProcessing && (
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-yellow-400">🤖 Gemini đang phân tích tín hiệu mạnh...</span>
-                </div>
-              )}
-              
-              {/* Gemini Decision Status */}
-              {!geminiProcessing && lastGeminiSignal && (Date.now() - (lastGeminiSignal.timestamp || 0) < 30000) && (
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-xs text-green-400">✅ Gemini đã quyết định: {lastGeminiSignal.action}</span>
-                </div>
-              )}
-              
-              {/* Technical Analysis Only */}
-              {!geminiProcessing && (!lastGeminiSignal || (Date.now() - (lastGeminiSignal.timestamp || 0) > 30000)) && displayAnalysis && (
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                  <span className="text-xs text-blue-400">📊 Phân tích kỹ thuật</span>
-                </div>
-              )}
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                <span className="text-xs text-blue-400">📊 Phân tích kỹ thuật</span>
+              </div>
             </div>
           </div>
           <div className="text-right">
             <div className="mb-2">
-              <SymbolSelector
-                currentSymbol={currentSymbol}
-                onSymbolChange={handleSymbolChange}
-              />
+              <SymbolSelector currentSymbol={currentSymbol} onSymbolChange={handleSymbolChange} />
             </div>
             <div className="flex items-center space-x-2 mb-2">
               {isConnected ? (
@@ -310,7 +208,6 @@ function App() {
 
       <div className="max-w-7xl mx-auto p-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Chart */}
           <div className="lg:col-span-2">
             <PriceChart
               candles={candles.slice(-100)}
@@ -320,8 +217,6 @@ function App() {
               signals={displayAnalysis.signals}
             />
           </div>
-
-          {/* Right Column - Market Overview */}
           <div>
             <MarketOverview
               analysis={displayAnalysis}
@@ -333,15 +228,10 @@ function App() {
           </div>
         </div>
 
-        {/* Trading Signals */}
         <div className="mt-6">
-          <TradingSignals 
-            signals={displaySignal ? [displaySignal] : displayAnalysis.signals} 
-            symbol={currentSymbol} 
-          />
+          <TradingSignals signals={displayAnalysis.signals} symbol={currentSymbol} />
         </div>
 
-        {/* Telegram Settings */}
         <div className="mt-6">
           <TelegramSettings
             config={telegramConfig}
@@ -350,7 +240,6 @@ function App() {
           />
         </div>
 
-        {/* Risk Warning */}
         <div className="mt-6 bg-yellow-900/20 border border-yellow-700 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <AlertTriangle className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5" />
