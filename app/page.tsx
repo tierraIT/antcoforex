@@ -1,23 +1,22 @@
-"use client"
-
 import { useMemo, useState, useEffect, useCallback } from "react"
 import { useBinanceData } from "@/hooks/useBinanceData"
 import { TechnicalAnalyzer } from "@/utils/technicalAnalysis"
-import { PriceChart } from "@/components/PriceChart"
-import { TradingSignals } from "@/components/TradingSignals"
-import { MarketOverview } from "@/components/MarketOverview"
-import { TelegramSettings } from "@/components/TelegramSettings"
-import { SymbolSelector } from "@/components/SymbolSelector"
-import { TelegramService } from "@/services/telegramService"
 import type { TelegramConfig, TradingSignal, MarketAnalysis, TradingSymbol } from "@/types/trading"
 import { DEFAULT_SYMBOL } from "@/config/symbols"
 import { RefreshCw, AlertTriangle, Wifi, WifiOff } from "lucide-react"
 
+// Các components cần import
+// import { PriceChart } from "@/components/PriceChart"
+// import { TradingSignals } from "@/components/TradingSignals"
+// import { MarketOverview } from "@/components/MarketOverview"
+// import { TelegramSettings } from "@/components/TelegramSettings"
+// import { SymbolSelector } from "@/components/SymbolSelector"
+// import { TelegramService } from "@/services/telegramService"
+
 export default function Home() {
-  // Symbol state
   const [currentSymbol, setCurrentSymbol] = useState<TradingSymbol>(DEFAULT_SYMBOL)
 
-  const { candles, loading, error, lastUpdate, isConnected, refetch } = useBinanceData(5000, currentSymbol) // 5 second updates
+  const { candles, loading, error, lastUpdate, isConnected, refetch } = useBinanceData(5000, currentSymbol)
 
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({
     botToken: "",
@@ -25,22 +24,23 @@ export default function Home() {
     enabled: false,
   })
 
-  const [telegramService] = useState(() => new TelegramService(telegramConfig))
+  // Đã xóa trạng thái `telegramService` khỏi đây để đồng bộ hơn. Bạn cần khởi tạo nó một lần trong `useEffect`.
+  // Thay thế bằng một instance đơn giản hoặc sử dụng Context nếu cần.
+
   const [lastSignalSent, setLastSignalSent] = useState<number>(0)
 
-  // Handle symbol change
   const handleSymbolChange = useCallback((symbol: TradingSymbol) => {
     setCurrentSymbol(symbol)
     localStorage.setItem("selected_symbol", JSON.stringify(symbol))
-    // Reset analysis states when symbol changes
     setBaseAnalysis(null)
     setEnhancedAnalysis(null)
-    setAnalysisConflict(false)
   }, [])
-  // baseAnalysis will hold the result of TechnicalAnalyzer.analyzeMarket
-  const [baseAnalysis, setBaseAnalysis] = useState<MarketAnalysis | null>(null)
 
-  // Update baseAnalysis whenever candles change
+  const [baseAnalysis, setBaseAnalysis] = useState<MarketAnalysis | null>(null)
+  const [enhancedAnalysis, setEnhancedAnalysis] = useState<MarketAnalysis | null>(null)
+  const [aiProcessing, setAiProcessing] = useState(false)
+  const [lastAiCall, setLastAiCall] = useState<number>(0)
+
   useEffect(() => {
     if (candles.length === 0) {
       setBaseAnalysis(null)
@@ -49,34 +49,26 @@ export default function Home() {
     setBaseAnalysis(TechnicalAnalyzer.analyzeMarket(candles))
   }, [candles])
 
-  // Enhanced analysis with AI
-  const [enhancedAnalysis, setEnhancedAnalysis] = useState<MarketAnalysis | null>(null)
-  const [aiProcessing, setAiProcessing] = useState(false)
-  const [lastAiCall, setLastAiCall] = useState<number>(0)
-  const [analysisConflict, setAnalysisConflict] = useState<{ ta: string; ai: string } | false>(false)
-
-  // Get AI-enhanced analysis for actionable and high probability signals
   useEffect(() => {
-    // Reset analysis conflict state when base analysis changes
-    setAnalysisConflict(false)
-
     if (!baseAnalysis || candles.length === 0) {
-      setEnhancedAnalysis(null) // Ensure enhancedAnalysis is null if no base analysis
+      setEnhancedAnalysis(null)
       return
     }
 
-    const currentSignal = baseAnalysis.signals[0]
+    const currentSignal = baseAnalysis.signals[0];
+    const timeSinceLastAI = Date.now() - lastAiCall;
 
-    // Define conditions for calling AI
-    const isActionable = currentSignal && (currentSignal.action === "BUY" || currentSignal.action === "SELL")
-    const timeSinceLastAI = Date.now() - lastAiCall
-    const cooldownPassedForAI = timeSinceLastAI > 10000 // Thay đổi từ 600000 ms (10 phút) xuống 60000 ms (1 phút)
-
-    // Call AI if signal is actionable and cooldown has passed
-    const shouldCallAI = isActionable && cooldownPassedForAI
+    const isStrongSignal = (
+      (currentSignal.action === 'BUY' || currentSignal.action === 'SELL') &&
+      (currentSignal.strength === 'STRONG' || currentSignal.strength === 'VERY_STRONG')
+    ) && (
+      currentSignal.probability >= 45 && currentSignal.confidence >= 65
+    );
+    
+    const cooldownPassed = timeSinceLastAI > 60000; // 1 phút cooldown cho AI
+    const shouldCallAI = isStrongSignal && cooldownPassed && !aiProcessing;
 
     if (!shouldCallAI) {
-      // If AI shouldn't be called, use the basic analysis
       setEnhancedAnalysis(baseAnalysis)
       return
     }
@@ -87,38 +79,27 @@ export default function Home() {
 
       try {
         const indicators = TechnicalAnalyzer.getTechnicalIndicators(candles)
-        const enhancedSignals = await TechnicalAnalyzer.generateEnhancedTradingSignals(
+        const geminiSignal = await TechnicalAnalyzer.getGeminiFinalDecision(
           candles,
           indicators,
-          baseAnalysis.trend,
-          baseAnalysis.momentum,
+          currentSignal,
           currentSymbol,
-          currentSignal, // Pass the basic signal to be enhanced
         )
 
         const finalAnalysis = {
           ...baseAnalysis,
-          signals: enhancedSignals,
+          signals: [geminiSignal],
         }
         setEnhancedAnalysis(finalAnalysis)
-
-        // Logic to detect conflict
-        const taAction = baseAnalysis.signals[0]?.action
-        const aiAction = finalAnalysis.signals[0]?.action
-
-        if (taAction && aiAction && taAction !== aiAction) {
-          setAnalysisConflict({ ta: taAction, ai: aiAction })
-          console.log(`Xung đột phân tích: TA đề xuất ${taAction} nhưng AI quyết định ${aiAction}`)
-        }
       } catch (error) {
-        setEnhancedAnalysis(baseAnalysis) // Fallback to basic analysis if AI fails
+        setEnhancedAnalysis(baseAnalysis)
       } finally {
         setAiProcessing(false)
       }
     }
 
     enhanceWithAI()
-  }, [baseAnalysis, candles, lastAiCall, currentSymbol]) // Depend on baseAnalysis and currentSymbol
+  }, [baseAnalysis, candles, lastAiCall, currentSymbol])
 
   const indicators = useMemo(() => {
     if (candles.length === 0) return null
@@ -132,30 +113,28 @@ export default function Home() {
     return ((current - previous) / previous) * 100
   }, [candles])
 
-  // Function to send signal to external API (now just updates the API for Python to pull)
-  const updateSignalOnExternalAPI = useCallback(async (signal: TradingSignal) => {
-    try {
-      const response = await fetch("/api/signals", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(signal),
-      })
+  // Cần khởi tạo TelegramService trong useEffect để lấy config từ localStorage
+  const [telegramService, setTelegramService] = useState<TelegramService | null>(null);
 
-      if (response.ok) {
-      } else {
-      }
-    } catch (error) {}
-  }, [])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const config = {
+        botToken: localStorage.getItem("telegram_bot_token") || "",
+        chatId: localStorage.getItem("telegram_chat_id") || "",
+        enabled: localStorage.getItem("telegram_enabled") === "true",
+      };
+      setTelegramConfig(config);
+      setTelegramService(new TelegramService(config));
+    }
+  }, []);
 
-  // Handle Telegram config changes
   const handleTelegramConfigChange = useCallback(
     (config: TelegramConfig) => {
       setTelegramConfig(config)
-      telegramService.updateConfig(config)
+      if (telegramService) {
+        telegramService.updateConfig(config);
+      }
 
-      // Save to localStorage
       localStorage.setItem("telegram_bot_token", config.botToken)
       localStorage.setItem("telegram_chat_id", config.chatId)
       localStorage.setItem("telegram_enabled", config.enabled.toString())
@@ -163,8 +142,9 @@ export default function Home() {
     [telegramService],
   )
 
-  // Send test message
   const handleTestMessage = useCallback(async () => {
+    if (!telegramService) return;
+    
     const testSignal: TradingSignal = {
       action: "BUY",
       confidence: 85,
@@ -177,100 +157,42 @@ export default function Home() {
       take_profit: candles.length > 0 ? candles[candles.length - 1].close * 1.02 : 51000,
     }
 
-    // IMPORTANT: Avoid using alert() in production code for better UX.
-    // Replace with a custom modal or toast notification.
     const success = await telegramService.sendTradingAlert(testSignal, testSignal.entry_price)
     if (success) {
       alert("Test message sent successfully!")
-      // Update the signal on the API for Python to pull
-      updateSignalOnExternalAPI(testSignal)
     } else {
       alert("Failed to send test message. Please check your configuration.")
     }
-  }, [telegramService, candles, currentSymbol, updateSignalOnExternalAPI])
+  }, [telegramService, candles, currentSymbol])
 
-  // Auto-send strong signals
+  // Logic tự động gửi Telegram
   useEffect(() => {
-    if (!enhancedAnalysis || !telegramConfig.enabled || !telegramConfig.botToken || !telegramConfig.chatId) {
-      console.log("❌ Telegram auto-send skipped:", {
-        hasAnalysis: !!enhancedAnalysis,
-        enabled: telegramConfig.enabled,
-        hasToken: !!telegramConfig.botToken,
-        hasChatId: !!telegramConfig.chatId,
-      })
+    if (!enhancedAnalysis || !telegramConfig.enabled || !telegramService) {
       return
     }
 
     const currentSignal = enhancedAnalysis.signals[0]
     if (!currentSignal) {
-      console.log("❌ No signal found for auto-send")
       return
     }
 
-    // Điều kiện gửi Telegram: AI đã xác nhận với xác suất cao, có thể hành động, và đã qua thời gian chờ
     const timeSinceLastSignal = Date.now() - lastSignalSent
-    const isHighProbabilityFromAI = currentSignal.probability >= 70 // Xác suất cao từ AI
-    const isActionable = currentSignal.action === "BUY" || currentSignal.action === "SELL" // Tín hiệu có thể hành động
-    const cooldownPassed = timeSinceLastSignal > 60000 // 1 phút cooldown
+    const isHighProbabilityFromAI = currentSignal.probability >= 70
+    const isActionable = currentSignal.action === "BUY" || currentSignal.action === "SELL"
+    const cooldownPassed = timeSinceLastSignal > 60000
 
-    // Quyết định gửi Telegram chỉ dựa vào xác suất của AI, khả năng hành động và cooldown
     const shouldSend = isHighProbabilityFromAI && isActionable && cooldownPassed
 
-    console.log("🔍 Telegram auto-send check (AI-driven):", {
-      signal: currentSignal.action,
-      strength: currentSignal.strength,
-      probability: currentSignal.probability,
-      isHighProbabilityFromAI,
-      isActionable,
-      cooldownPassed,
-      timeSinceLastSignal: Math.round(timeSinceLastSignal / 1000) + "s",
-      shouldSend,
-    })
-
     if (shouldSend) {
-      console.log("📤 Sending Telegram alert...")
       const currentPrice = candles[candles.length - 1].close
       telegramService.sendTradingAlert(currentSignal, currentPrice).then((success) => {
         if (success) {
           setLastSignalSent(Date.now())
-          console.log("✅ Trading signal sent to Telegram successfully")
-          // Update the signal on the API for Python to pull
-          updateSignalOnExternalAPI(currentSignal)
-        } else {
-          console.log("❌ Failed to send trading signal to Telegram")
         }
       })
-    } else {
-      console.log("⏸️ Signal not sent - conditions not met")
     }
-  }, [enhancedAnalysis, telegramConfig.enabled, telegramService, candles, lastSignalSent, updateSignalOnExternalAPI])
+  }, [enhancedAnalysis, telegramConfig.enabled, telegramService, candles, lastSignalSent])
 
-  // Load initial symbol from localStorage on client-side mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedSymbol = localStorage.getItem("selected_symbol")
-      if (savedSymbol) {
-        try {
-          setCurrentSymbol(JSON.parse(savedSymbol))
-        } catch (e) {
-          setCurrentSymbol(DEFAULT_SYMBOL)
-        }
-      }
-    }
-  }, [])
-
-  // Load initial Telegram config from localStorage on client-side mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setTelegramConfig({
-        botToken: localStorage.getItem("telegram_bot_token") || "",
-        chatId: localStorage.getItem("telegram_chat_id") || "",
-        enabled: localStorage.getItem("telegram_enabled") === "true",
-      })
-    }
-  }, [])
-
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -282,7 +204,6 @@ export default function Home() {
     )
   }
 
-  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -301,10 +222,9 @@ export default function Home() {
     )
   }
 
-  // Use enhanced analysis if available, otherwise fall back to basic analysis
   const displayAnalysis = enhancedAnalysis || baseAnalysis
+  const displaySignal = displayAnalysis?.signals[0]
 
-  // If displayAnalysis or indicators are still null after all checks, show insufficient data message
   if (!displayAnalysis || !indicators) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -332,16 +252,16 @@ export default function Home() {
                   <span className="text-xs text-blue-400">🤖 AI Đang phân tích...</span>
                 </div>
               )}
-              {/* *** HIỂN THỊ CẢNH BÁO XUNG ĐỘT *** */}
-              {!aiProcessing && analysisConflict && (
+              {/* Cập nhật hiển thị trạng thái AI */}
+              {!aiProcessing && enhancedAnalysis?.signals[0] && enhancedAnalysis?.signals[0].action !== baseAnalysis?.signals[0].action && (
                 <div className="flex items-center space-x-2 bg-yellow-900/50 border border-yellow-700 px-2 py-1 rounded">
                   <AlertTriangle className="w-4 h-4 text-yellow-400" />
                   <span className="text-xs text-yellow-300 font-semibold">
-                    Xung đột: TA đề xuất {analysisConflict.ta} nhưng AI quyết định {analysisConflict.ai}
+                    Xung đột: TA đề xuất {baseAnalysis?.signals[0].action} nhưng AI quyết định {enhancedAnalysis?.signals[0].action}
                   </span>
                 </div>
               )}
-              {!aiProcessing && enhancedAnalysis && !analysisConflict && (
+              {!aiProcessing && enhancedAnalysis && enhancedAnalysis?.signals[0].action === baseAnalysis?.signals[0].action && (
                 <div className="flex items-center space-x-1">
                   <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                   <span className="text-xs text-green-400">✅ AI đã xác nhận</span>
