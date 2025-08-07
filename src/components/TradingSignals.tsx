@@ -58,7 +58,7 @@ export const TradingSignals: React.FC<TradingSignalsProps> = ({ signals = [], sy
   const getConfidenceBar = (confidence: number) => {
     const width = Math.max(confidence || 0, 10)
     let colorClass = "bg-gray-500"
-    if (confidence >= 70) colorClass = "bg-green-500"
+    if (confidence >= 75) colorClass = "bg-green-500"
     else if (confidence >= 50) colorClass = "bg-yellow-500"
     else if (confidence >= 30) colorClass = "bg-orange-500"
     else colorClass = "bg-red-500"
