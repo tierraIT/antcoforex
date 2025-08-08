@@ -375,9 +375,13 @@ export class TechnicalAnalyzer {
         // Volume confirmation
         const volumeRatio = indicators.volume / indicators.avgVolume;
         if (volumeRatio > 1.5) {
-            score += Math.sign(score) * 5;
-            reasons.push('High volume confirmation');
+            // Chỉ cộng điểm nếu score đã có hướng, tránh trường hợp volume cao trong lúc sideway
+            if (score !== 0) {
+                score += Math.sign(score) * 5;
+                reasons.push('High volume confirmation');
+            }
         }
+
 
         // Determine signal
         let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
