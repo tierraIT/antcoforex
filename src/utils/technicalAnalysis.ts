@@ -289,15 +289,15 @@ export class TechnicalAnalyzer {
         const reasons: string[] = [];
         
         // RSI Analysis (Weight: 25%)
-        if (indicators.rsi < 40) {
+        if (indicators.rsi < 35) { // THAY ĐỔI: Giảm ngưỡng để bắt tín hiệu sớm hơn
             score += 25;
-            reasons.push('RSI oversold (<30)');
+            reasons.push('RSI oversold (<35)');
         } else if (indicators.rsi < 45) {
             score += 15;
             reasons.push('RSI approaching oversold');
-        } else if (indicators.rsi > 60) {
+        } else if (indicators.rsi > 65) { // THAY ĐỔI: Giảm ngưỡng
             score -= 25;
-            reasons.push('RSI overbought (>70)');
+            reasons.push('RSI overbought (>65)');
         } else if (indicators.rsi > 55) {
             score -= 15;
             reasons.push('RSI approaching overbought');
