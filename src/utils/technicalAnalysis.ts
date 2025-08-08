@@ -324,6 +324,17 @@ export class TechnicalAnalyzer {
             }
         }
 
+        // *** THÊM MỚI: Logic Scalping Pullback về EMA (Weight: 20%) ***
+        const isUptrend = indicators.ema12 > indicators.ema26;
+        const isDowntrend = indicators.ema12 < indicators.ema26;
+        
+        if (isUptrend && currentPrice <= indicators.ema12 && currentPrice >= indicators.ema26) {
+            score += 20;
+            reasons.push('Price pullback to EMA dynamic zone in uptrend');
+        } else if (isDowntrend && currentPrice >= indicators.ema12 && currentPrice <= indicators.ema26) {
+            score -= 20;
+            reasons.push('Price pullback to EMA dynamic zone in downtrend');
+        }
         // Moving Average Analysis (Weight: 20%)
         if (currentPrice > indicators.sma20 && indicators.sma20 > indicators.sma50) {
             score += 20;
