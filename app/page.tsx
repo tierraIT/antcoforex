@@ -58,6 +58,16 @@ export default function Home() {
     if (candles.length < 50) return null;
     return TechnicalAnalyzer.analyzeMarket(candles, currentSymbol);
   }, [candles, currentSymbol]);
+  
+  // *** FIXED: Added priceChange calculation ***
+  const priceChange = useMemo(() => {
+      if (candles.length < 2) return 0;
+      const current = candles[candles.length - 1].close;
+      const previous = candles[candles.length - 2].close;
+      // Avoid division by zero if previous price is 0
+      if (previous === 0) return 0;
+      return ((current - previous) / previous) * 100;
+  }, [candles]);
 
   const handleTelegramConfigChange = useCallback(
     (config: TelegramConfig) => {
