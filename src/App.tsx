@@ -31,11 +31,13 @@ function App() {
 
   const [telegramService] = useState(() => new TelegramService(telegramConfig));
   const [lastTelegramSent, setLastTelegramSent] = useState<number>(0);
+  const [lastSignalHash, setLastSignalHash] = useState<string>('');
 
   const handleSymbolChange = useCallback((symbol: TradingSymbol) => {
     setCurrentSymbol(symbol);
     localStorage.setItem('selected_symbol', JSON.stringify(symbol));
     setLastTelegramSent(0);
+    setLastSignalHash(''); // Reset signal hash when changing symbols
   }, []);
 
   const technicalAnalysis = useMemo(() => {
@@ -43,7 +45,13 @@ function App() {
     return TechnicalAnalyzer.analyzeMarket(candles, currentSymbol);
   }, [candles, currentSymbol]);
 
-  // Auto-send Telegram signals
+  // Create a hash of the current signal to detect changes
+  const createSignalHash = useCallback((signal: TradingSignal): string => {
+    if (!signal) return '';
+    return `${signal.action}_${signal.strength}_${Math.floor(signal.confidence/5)*5}_${Math.floor(signal.probability/5)*5}`;
+  }, []);
+
+  // Enhanced auto-send Telegram signals with more notifications
   useEffect(() => {
     if (!telegramConfig.enabled || !telegramConfig.botToken || !telegramConfig.chatId || !technicalAnalysis) {
       return;
@@ -54,48 +62,92 @@ function App() {
       return;
     }
 
-    const timeSinceLastTelegram = Date.now() - lastTelegramSent;
     const currentPrice = candles[candles.length - 1]?.close;
-
     if (!currentPrice) {
       return;
     }
-    
-    // Send conditions: STRONG signal, probability ≥40%, confidence ≥65%, 1 minute cooldown
+
+    const timeSinceLastTelegram = Date.now() - lastTelegramSent;
+    const currentSignalHash = createSignalHash(currentSignal);
+    const signalChanged = currentSignalHash !== lastSignalHash && lastSignalHash !== '';
+
+    // Enhanced conditions for more notifications:
     const isStrongSignal = currentSignal.strength === 'STRONG';
+    const isModerateSignal = currentSignal.strength === 'MODERATE';
+    const isWeakButHighConfidence = currentSignal.strength === 'WEAK' && currentSignal.confidence >= 70;
     const isActionable = currentSignal.action === 'BUY' || currentSignal.action === 'SELL';
-    const meetsProbabilityThreshold = currentSignal.probability >= 40;
-    const meetsConfidenceThreshold = currentSignal.confidence >= 65;
-    const cooldownPassed = timeSinceLastTelegram > 60000; // 1 minute cooldown
+    
+    // Lowered thresholds for more signals
+    const meetsProbabilityThreshold = currentSignal.probability >= 35; // Lowered from 40
+    const meetsConfidenceThreshold = currentSignal.confidence >= 55; // Lowered from 65
+    
+    // Reduced cooldown and added signal change detection
+    const cooldownPassed = timeSinceLastTelegram > 45000; // 45 seconds (reduced from 60)
+    const quickCooldownPassed = timeSinceLastTelegram > 15000; // 15 seconds for signal changes
 
-    const shouldSend = isStrongSignal && isActionable && meetsProbabilityThreshold && meetsConfidenceThreshold && cooldownPassed;
+    // Multiple sending conditions for more notifications
+    const shouldSendStrong = isStrongSignal && isActionable && meetsProbabilityThreshold && meetsConfidenceThreshold && cooldownPassed;
+    const shouldSendModerate = isModerateSignal && isActionable && currentSignal.probability >= 45 && currentSignal.confidence >= 65 && cooldownPassed;
+    const shouldSendWeakHigh = isWeakButHighConfidence && isActionable && meetsProbabilityThreshold && cooldownPassed;
+    const shouldSendSignalChange = signalChanged && isActionable && currentSignal.confidence >= 60 && quickCooldownPassed;
+    
+    const shouldSend = shouldSendStrong || shouldSendModerate || shouldSendWeakHigh || shouldSendSignalChange;
 
-    console.log('🔍 Telegram send check:', {
+    console.log('🔍 Enhanced Telegram send check:', {
       signal: currentSignal.action,
       strength: currentSignal.strength,
       probability: currentSignal.probability,
       confidence: currentSignal.confidence,
-      isStrongSignal,
-      isActionable,
-      meetsProbabilityThreshold,
-      meetsConfidenceThreshold,
-      cooldownPassed,
+      signalHash: currentSignalHash,
+      lastHash: lastSignalHash,
+      signalChanged,
+      timeSince: Math.floor(timeSinceLastTelegram / 1000),
+      conditions: {
+        isStrongSignal,
+        isModerateSignal,
+        isWeakButHighConfidence,
+        isActionable,
+        meetsProbabilityThreshold,
+        meetsConfidenceThreshold,
+        cooldownPassed,
+        quickCooldownPassed,
+        shouldSendStrong,
+        shouldSendModerate,
+        shouldSendWeakHigh,
+        shouldSendSignalChange
+      },
       shouldSend
     });
 
     if (shouldSend) {
       const sendAlert = async () => {
-        const success = await telegramService.sendTradingAlert(currentSignal, currentPrice);
+        // Add signal change indicator to reason if it's a signal change
+        let enhancedSignal = { ...currentSignal };
+        if (shouldSendSignalChange) {
+          enhancedSignal.reason = `🔄 SIGNAL CHANGE: ${currentSignal.reason}`;
+        } else if (shouldSendStrong) {
+          enhancedSignal.reason = `🚀 STRONG SIGNAL: ${currentSignal.reason}`;
+        } else if (shouldSendModerate) {
+          enhancedSignal.reason = `📈 MODERATE SIGNAL: ${currentSignal.reason}`;
+        } else if (shouldSendWeakHigh) {
+          enhancedSignal.reason = `⚡ HIGH CONFIDENCE: ${currentSignal.reason}`;
+        }
+
+        const success = await telegramService.sendTradingAlert(enhancedSignal, currentPrice);
         if (success) {
           setLastTelegramSent(Date.now());
-          console.log('✅ Telegram alert sent successfully');
+          setLastSignalHash(currentSignalHash);
+          console.log('✅ Enhanced Telegram alert sent successfully');
         } else {
           console.log('❌ Failed to send Telegram alert');
         }
       };
       sendAlert();
+    } else {
+      // Update signal hash even if not sending to track changes
+      setLastSignalHash(currentSignalHash);
     }
-  }, [technicalAnalysis, telegramConfig, candles, lastTelegramSent, telegramService]);
+  }, [technicalAnalysis, telegramConfig, candles, lastTelegramSent, lastSignalHash, telegramService, createSignalHash]);
 
   const indicators = useMemo(() => {
     if (candles.length === 0) return null;
@@ -122,7 +174,7 @@ function App() {
       action: 'BUY',
       confidence: 85,
       timestamp: Date.now(),
-      reason: `Test message from ${currentSymbol.displayName} Trading Analyzer`,
+      reason: `🧪 TEST: ${currentSymbol.displayName} Scalping System Active`,
       probability: 75,
       strength: 'STRONG',
       entry_price: candles.length > 0 ? candles[candles.length - 1].close : 50000,
@@ -132,9 +184,9 @@ function App() {
 
     const success = await telegramService.sendTradingAlert(testSignal, testSignal.entry_price);
     if (success) {
-      alert('Test message sent successfully!');
+      alert('🎯 Test message sent successfully! Check your Telegram.');
     } else {
-      alert('Failed to send test message. Please check your configuration.');
+      alert('❌ Failed to send test message. Please check your configuration.');
     }
   }, [telegramService, candles, currentSymbol]);
 
@@ -144,6 +196,7 @@ function App() {
         <div className="text-center">
           <RefreshCw className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-4" />
           <p className="text-white">Loading market data...</p>
+          <p className="text-gray-400 text-sm mt-2">Initializing scalping analysis...</p>
         </div>
       </div>
     );
@@ -172,6 +225,7 @@ function App() {
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <p className="text-white">Insufficient data for analysis.</p>
+          <p className="text-gray-400 text-sm mt-2">Need at least 30 candles for scalping signals.</p>
         </div>
       </div>
     );
@@ -184,13 +238,19 @@ function App() {
       <header className="bg-gray-800 border-b border-gray-700 p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Lụm lúa cùng Tiến Anh</h1>
+            <h1 className="text-2xl font-bold">⚡ Lụm lúa cùng Tiến Anh - Scalping Pro</h1>
             <div className="flex items-center space-x-2">
-              <p className="text-gray-400 text-sm">Antco AI</p>
+              <p className="text-gray-400 text-sm">Enhanced Scalping AI</p>
               <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <span className="text-xs text-blue-400">📊 Phân tích kỹ thuật</span>
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-xs text-green-400">🔥 Ultra-Fast Signals</span>
               </div>
+              {telegramConfig.enabled && (
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <span className="text-xs text-blue-400">📱 Telegram Active</span>
+                </div>
+              )}
             </div>
           </div>
           <div className="text-right">
@@ -204,11 +264,11 @@ function App() {
                 <WifiOff className="w-4 h-4 text-red-400" />
               )}
               <span className={`text-xs ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
-                {isConnected ? 'LIVE' : 'DISCONNECTED'}
+                {isConnected ? 'LIVE DATA' : 'DISCONNECTED'}
               </span>
             </div>
             <div className="text-sm text-gray-400">Last Updated</div>
-            <div className="text-sm">{lastUpdate.toLocaleTimeString()}</div>
+            <div className="text-sm">{lastUpdate.toLocaleTimeString('vi-VN')}</div>
             <button
               onClick={refetch}
               className="mt-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm flex items-center space-x-1"
@@ -254,14 +314,34 @@ function App() {
           />
         </div>
 
+        {/* Enhanced notification info */}
+        <div className="mt-6 bg-blue-900/20 border border-blue-700 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <div className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5">🚀</div>
+            <div>
+              <h3 className="text-blue-400 font-semibold mb-2">Enhanced Scalping Notifications</h3>
+              <div className="text-blue-100 text-sm leading-relaxed space-y-1">
+                <p>• 🔥 <strong>STRONG signals</strong>: Confidence ≥55%, Probability ≥35%</p>
+                <p>• 📈 <strong>MODERATE signals</strong>: Confidence ≥65%, Probability ≥45%</p>
+                <p>• ⚡ <strong>HIGH CONFIDENCE</strong>: Weak signals with 70%+ confidence</p>
+                <p>• 🔄 <strong>SIGNAL CHANGES</strong>: Quick alerts on direction shifts (15s cooldown)</p>
+                <p>• ⏱️ <strong>Reduced cooldown</strong>: 45 seconds between regular signals</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="mt-6 bg-yellow-900/20 border border-yellow-700 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <AlertTriangle className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="text-yellow-400 font-semibold mb-2">Risk Warning</h3>
-              <p className="text-yellow-100 text-sm leading-relaxed">
-                Đừng tham lam. Lương của mày chỉ được 500 cành / ngày...
-              </p>
+              <h3 className="text-yellow-400 font-semibold mb-2">Scalping Risk Warning</h3>
+              <div className="text-yellow-100 text-sm leading-relaxed space-y-1">
+                <p>🎯 <strong>Scalping Strategy</strong>: Quick in, quick out - set tight stops!</p>
+                <p>💰 <strong>Position Size</strong>: Never risk more than 1-2% per trade</p>
+                <p>⏰ <strong>Time Management</strong>: Best during high liquidity hours</p>
+                <p>🚫 <strong>Tham Lam Warning</strong>: Lương của mày chỉ được 500 cành / ngày...</p>
+              </div>
             </div>
           </div>
         </div>
