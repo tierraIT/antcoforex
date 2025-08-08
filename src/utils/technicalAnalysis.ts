@@ -289,16 +289,16 @@ export class TechnicalAnalyzer {
         const reasons: string[] = [];
         
         // RSI Analysis (Weight: 25%)
-        if (indicators.rsi < 30) {
+        if (indicators.rsi < 40) {
             score += 25;
             reasons.push('RSI oversold (<30)');
-        } else if (indicators.rsi < 40) {
+        } else if (indicators.rsi < 45) {
             score += 15;
             reasons.push('RSI approaching oversold');
-        } else if (indicators.rsi > 70) {
+        } else if (indicators.rsi > 60) {
             score -= 25;
             reasons.push('RSI overbought (>70)');
-        } else if (indicators.rsi > 60) {
+        } else if (indicators.rsi > 55) {
             score -= 15;
             reasons.push('RSI approaching overbought');
         }
