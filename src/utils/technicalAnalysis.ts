@@ -373,7 +373,7 @@ export class TechnicalAnalyzer {
         let confidence = Math.max(25, Math.min(95, 50 + Math.abs(score) * 0.5));
         let probability = Math.max(30, Math.min(85, 40 + Math.abs(score) * 0.4));
 
-        if (score >= 60) {
+        if (score >= 50) {
             action = 'BUY';
             strength = 'STRONG';
             probability = Math.min(85, 60 + (score - 60) * 0.3);
