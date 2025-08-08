@@ -385,7 +385,7 @@ export class TechnicalAnalyzer {
             action = 'SELL';
             strength = 'STRONG';
             probability = Math.min(85, 60 + (Math.abs(score) - 60) * 0.3);
-        } else if (score <= -40) {
+        } else if (score <= -30) {
             action = 'SELL';
             strength = 'MODERATE';
             probability = Math.min(75, 50 + (Math.abs(score) - 40) * 0.5);
