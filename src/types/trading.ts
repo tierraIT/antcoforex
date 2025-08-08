@@ -44,7 +44,7 @@ export interface TradingSignal {
   timestamp: number;
   reason: string;
   probability: number;
-  strength: 'WEAK' | 'MODERATE' | 'STRONG' | 'VERY_STRONG';
+  strength: 'WEAK' | 'MODERATE' | 'STRONG';
   entry_price: number;
   stop_loss: number;
   take_profit: number;

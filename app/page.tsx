@@ -107,9 +107,9 @@ export default function Home() {
     }
   }, [telegramService, candles, currentSymbol])
 
-  // Logic tự động gửi Telegram
+  // Auto-send Telegram signals
   useEffect(() => {
-    if (!analysis || !telegramConfig.enabled || !telegramService) {
+    if (!analysis || !telegramConfig.enabled || !telegramService || !candles.length) {
       return
     }
 
@@ -119,17 +119,34 @@ export default function Home() {
     }
 
     const timeSinceLastSignal = Date.now() - lastSignalSent
-    const isHighProbability = currentSignal.probability >= 45
+    const isStrongSignal = currentSignal.strength === 'STRONG'
     const isActionable = currentSignal.action === "BUY" || currentSignal.action === "SELL"
-    const cooldownPassed = timeSinceLastSignal > 60000
+    const meetsProbabilityThreshold = currentSignal.probability >= 40
+    const meetsConfidenceThreshold = currentSignal.confidence >= 65
+    const cooldownPassed = timeSinceLastSignal > 60000 // 1 minute
 
-    const shouldSend = isHighProbability && isActionable && cooldownPassed
+    const shouldSend = isStrongSignal && isActionable && meetsProbabilityThreshold && meetsConfidenceThreshold && cooldownPassed
 
+    console.log('🔍 Telegram send check:', {
+      signal: currentSignal.action,
+      strength: currentSignal.strength,
+      probability: currentSignal.probability,
+      confidence: currentSignal.confidence,
+      isStrongSignal,
+      isActionable,
+      meetsProbabilityThreshold,
+      meetsConfidenceThreshold,
+      cooldownPassed,
+      shouldSend
+    })
     if (shouldSend) {
       const currentPrice = candles[candles.length - 1].close
       telegramService.sendTradingAlert(currentSignal, currentPrice).then((success) => {
         if (success) {
           setLastSignalSent(Date.now())
+          console.log('✅ Telegram alert sent successfully')
+        } else {
+          console.log('❌ Failed to send Telegram alert')
         }
       })
     }

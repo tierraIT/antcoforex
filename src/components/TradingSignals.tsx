@@ -44,8 +44,6 @@ export const TradingSignals: React.FC<TradingSignalsProps> = ({ signals = [], sy
 
   const getStrengthColor = (strength: string) => {
     switch (strength) {
-      case "VERY_STRONG":
-        return "text-purple-400 bg-purple-900/20 border-purple-700"
       case "STRONG":
         return "text-blue-400 bg-blue-900/20 border-blue-700"
       case "MODERATE":

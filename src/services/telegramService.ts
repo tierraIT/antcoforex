@@ -41,7 +41,7 @@ export class TelegramService {
 
   private formatTradingMessage(signal: TradingSignal, currentPrice: number): string {
     const emoji = signal.action === "BUY" ? "🟢" : "🔴"
-    const strengthEmoji = signal.strength === "VERY_STRONG" ? "🚀🚀" : "🚀"
+    const strengthEmoji = signal.strength === "STRONG" ? "🚀" : "📈"
 
     return `
 ${emoji} <b>TRADING SIGNAL</b> ${strengthEmoji}
@@ -55,6 +55,7 @@ ${emoji} <b>TRADING SIGNAL</b> ${strengthEmoji}
 <b>Stop Loss:</b> $${signal.stop_loss.toFixed(5)}
 <b>Take Profit:</b> $${signal.take_profit.toFixed(5)}
 
+<b>Analysis:</b> ${signal.reason}
 
 <b>Risk/Reward:</b> ${this.calculateRiskReward(signal)}
 

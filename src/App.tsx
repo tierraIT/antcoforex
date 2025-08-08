@@ -43,17 +43,17 @@ function App() {
     return TechnicalAnalyzer.analyzeMarket(candles, currentSymbol);
   }, [candles, currentSymbol]);
 
-  // Logic gửi tín hiệu Telegram
+  // Auto-send Telegram signals
   useEffect(() => {
-    if (!telegramConfig.enabled || !telegramConfig.botToken || !telegramConfig.chatId) {
+    if (!telegramConfig.enabled || !telegramConfig.botToken || !telegramConfig.chatId || !technicalAnalysis) {
       return;
     }
 
-    if (!technicalAnalysis || !technicalAnalysis.signals[0]) {
+    const currentSignal = technicalAnalysis.signals[0];
+    if (!currentSignal) {
       return;
     }
 
-    const technicalSignal = technicalAnalysis.signals[0];
     const timeSinceLastTelegram = Date.now() - lastTelegramSent;
     const currentPrice = candles[candles.length - 1]?.close;
 
@@ -61,19 +61,34 @@ function App() {
       return;
     }
     
-    // Chỉ gửi tín hiệu mạnh sau một khoảng thời gian cooldown
-    const isStrongSignal = (
-      (technicalSignal.action === 'BUY' || technicalSignal.action === 'SELL') &&
-      (technicalSignal.strength === 'STRONG' || technicalSignal.strength === 'VERY_STRONG')
-    );
-    const cooldownPassed = timeSinceLastTelegram > 60000; // 1 phút cooldown
+    // Send conditions: STRONG signal, probability ≥40%, confidence ≥65%, 1 minute cooldown
+    const isStrongSignal = currentSignal.strength === 'STRONG';
+    const isActionable = currentSignal.action === 'BUY' || currentSignal.action === 'SELL';
+    const meetsProbabilityThreshold = currentSignal.probability >= 40;
+    const meetsConfidenceThreshold = currentSignal.confidence >= 65;
+    const cooldownPassed = timeSinceLastTelegram > 60000; // 1 minute cooldown
 
-    if (isStrongSignal && cooldownPassed) {
+    const shouldSend = isStrongSignal && isActionable && meetsProbabilityThreshold && meetsConfidenceThreshold && cooldownPassed;
+
+    console.log('🔍 Telegram send check:', {
+      signal: currentSignal.action,
+      strength: currentSignal.strength,
+      probability: currentSignal.probability,
+      confidence: currentSignal.confidence,
+      isStrongSignal,
+      isActionable,
+      meetsProbabilityThreshold,
+      meetsConfidenceThreshold,
+      cooldownPassed,
+      shouldSend
+    });
+
+    if (shouldSend) {
       const sendAlert = async () => {
-        const success = await telegramService.sendTradingAlert(technicalSignal, currentPrice);
+        const success = await telegramService.sendTradingAlert(currentSignal, currentPrice);
         if (success) {
           setLastTelegramSent(Date.now());
-          console.log('📱 Telegram alert sent successfully');
+          console.log('✅ Telegram alert sent successfully');
         } else {
           console.log('❌ Failed to send Telegram alert');
         }
@@ -152,12 +167,11 @@ function App() {
     );
   }
 
-  const displayAnalysis = technicalAnalysis;
-  if (!displayAnalysis || !indicators) {
+  if (!technicalAnalysis || !indicators) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-white">Insufficient data for analysis or analysis is not ready.</p>
+          <p className="text-white">Insufficient data for analysis.</p>
         </div>
       </div>
     );
@@ -214,12 +228,12 @@ function App() {
               symbol={currentSymbol}
               width={800}
               height={400}
-              signals={displayAnalysis.signals}
+              signals={technicalAnalysis.signals}
             />
           </div>
           <div>
             <MarketOverview
-              analysis={displayAnalysis}
+              analysis={technicalAnalysis}
               indicators={indicators}
               symbol={currentSymbol}
               currentPrice={currentPrice}
@@ -229,7 +243,7 @@ function App() {
         </div>
 
         <div className="mt-6">
-          <TradingSignals signals={displayAnalysis.signals} symbol={currentSymbol} />
+          <TradingSignals signals={technicalAnalysis.signals} symbol={currentSymbol} />
         </div>
 
         <div className="mt-6">

@@ -128,23 +128,25 @@ export const TelegramSettings: React.FC<TelegramSettingsProps> = ({
               </button>
 
             <div className="mt-4 p-3 bg-gray-900/50 rounded">
-    <h4 className="text-sm font-medium text-gray-300 mb-2">📋 Auto-send Conditions</h4>
+    <h4 className="text-sm font-medium text-gray-300 mb-2">📋 Điều kiện gửi tự động</h4>
     <div className="text-xs text-gray-400 space-y-1">
-      <div>• <strong>Strong Signal:</strong> STRONG/VERY_STRONG only</div>
-      <div>• <strong>Quality:</strong> Probability ≥45% AND Confidence ≥73%</div>
-      <div>• <strong>Technical Analysis:</strong> Based on indicators only</div>
+      <div>• <strong>Tín hiệu:</strong> Chỉ STRONG signals</div>
+      <div>• <strong>Chất lượng:</strong> Xác suất ≥40% VÀ Độ tin cậy ≥65%</div>
+      <div>• <strong>Phân tích:</strong> Dựa trên chỉ số kỹ thuật chuẩn Forex</div>
       <div>• <strong>Cooldown:</strong> 1 phút giữa các tín hiệu</div>
-      <div>• <strong>Reliability:</strong> Pure technical analysis signals</div>
+      <div>• <strong>Độ tin cậy:</strong> Tín hiệu phân tích kỹ thuật thuần túy</div>
     </div>
   </div>
 
-  <div className="mt-4 p-3 bg-blue-900/20 border border-blue-700 rounded">
-    <h4 className="text-sm font-medium text-blue-300 mb-2">📊 Trading Flow</h4>
+  <div className="mt-4 p-3 bg-green-900/20 border border-green-700 rounded">
+    <h4 className="text-sm font-medium text-green-300 mb-2">📊 Quy trình phân tích</h4>
     <div className="text-xs text-green-200 space-y-1">
-      <div>1. Phát hiện tín hiệu MẠNH từ chỉ số kỹ thuật</div>
-      <div>2. Kiểm tra điều kiện chất lượng tín hiệu</div>
-      <div>3. Gửi Telegram khi đạt ngưỡng</div>
-      <div>4. Dựa hoàn toàn trên phân tích kỹ thuật</div>
+      <div>1. <strong>RSI (25%):</strong> Xác định vùng quá mua/quá bán</div>
+      <div>2. <strong>MACD (25%):</strong> Tín hiệu crossover và momentum</div>
+      <div>3. <strong>Moving Averages (35%):</strong> Xu hướng và alignment</div>
+      <div>4. <strong>Bollinger Bands (10%):</strong> Volatility và extremes</div>
+      <div>5. <strong>Stochastic (5%):</strong> Xác nhận overbought/oversold</div>
+      <div>6. <strong>Volume:</strong> Xác nhận độ mạnh của tín hiệu</div>
     </div>
   </div>
             </>
