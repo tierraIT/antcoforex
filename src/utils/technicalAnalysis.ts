@@ -335,6 +335,7 @@ export class TechnicalAnalyzer {
             score -= 20;
             reasons.push('Price pullback to EMA dynamic zone in downtrend');
         }
+      
         // Moving Average Analysis (Weight: 20%)
         if (currentPrice > indicators.sma20 && indicators.sma20 > indicators.sma50) {
             score += 20;
