@@ -24,11 +24,11 @@ function App() {
   const { candles, loading, error, lastUpdate, isConnected, refetch } = useBinanceData(5000, currentSymbol);
 
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({
-    botToken: localStorage.getItem('telegram_bot_token') || '7578707048:AAG5Vr667I-3LerfhO1YzYbgTinXJwuHmAA',
-    chatId: localStorage.getItem('telegram_chat_id') || '-1002577959257',
+    botToken: localStorage.getItem('telegram_bot_token') || '',
+    chatId: localStorage.getItem('telegram_chat_id') || '',
     enabled: localStorage.getItem('telegram_enabled') !== 'false'
   });
-  
+
   const [telegramService] = useState(() => new TelegramService(telegramConfig));
   const [lastTelegramSent, setLastTelegramSent] = useState<number>(0);
 
@@ -39,49 +39,75 @@ function App() {
   }, []);
 
   const technicalAnalysis = useMemo(() => {
-    if (candles.length < 50) return null;
+    if (candles.length === 0) return null;
     return TechnicalAnalyzer.analyzeMarket(candles, currentSymbol);
   }, [candles, currentSymbol]);
 
-  // *** UPDATED AUTO-SEND TELEGRAM LOGIC ***
+  // Auto-send Telegram signals
   useEffect(() => {
-    if (!technicalAnalysis || !telegramConfig.enabled || !telegramConfig.botToken || !telegramConfig.chatId) {
+    if (!telegramConfig.enabled || !telegramConfig.botToken || !telegramConfig.chatId || !technicalAnalysis) {
       return;
     }
 
     const currentSignal = technicalAnalysis.signals[0];
-    if (!currentSignal || currentSignal.action === 'HOLD') {
+    if (!currentSignal) {
+      return;
+    }
+
+    const timeSinceLastTelegram = Date.now() - lastTelegramSent;
+    const currentPrice = candles[candles.length - 1]?.close;
+
+    if (!currentPrice) {
       return;
     }
     
-    const timeSinceLastTelegram = Date.now() - lastTelegramSent;
-    
-    // --- NEW, LESS RESTRICTIVE CONDITIONS ---
+    // Send conditions: STRONG signal, probability ≥40%, confidence ≥65%, 1 minute cooldown
+    const isStrongSignal = currentSignal.strength === 'STRONG';
     const isActionable = currentSignal.action === 'BUY' || currentSignal.action === 'SELL';
-    const meetsStrengthThreshold = currentSignal.strength === 'STRONG' || currentSignal.strength === 'MODERATE';
-    const meetsProbabilityThreshold = currentSignal.probability >= 35;
-    const meetsConfidenceThreshold = currentSignal.confidence >= 55;
-    const cooldownPassed = timeSinceLastTelegram > 30000; // 30 second cooldown
+    const meetsProbabilityThreshold = currentSignal.probability >= 40;
+    const meetsConfidenceThreshold = currentSignal.confidence >= 65;
+    const cooldownPassed = timeSinceLastTelegram > 60000; // 1 minute cooldown
 
-    const shouldSend = isActionable && meetsStrengthThreshold && meetsProbabilityThreshold && meetsConfidenceThreshold && cooldownPassed;
-    
+    const shouldSend = isStrongSignal && isActionable && meetsProbabilityThreshold && meetsConfidenceThreshold && cooldownPassed;
+
+    console.log('🔍 Telegram send check:', {
+      signal: currentSignal.action,
+      strength: currentSignal.strength,
+      probability: currentSignal.probability,
+      confidence: currentSignal.confidence,
+      isStrongSignal,
+      isActionable,
+      meetsProbabilityThreshold,
+      meetsConfidenceThreshold,
+      cooldownPassed,
+      shouldSend
+    });
+
     if (shouldSend) {
-      const currentPrice = candles[candles.length - 1]?.close;
-      if (!currentPrice) return;
-
-      console.log(`🚀 Sending Telegram Alert: ${currentSignal.action} | ${currentSignal.reason} | Confidence: ${currentSignal.confidence}`);
       const sendAlert = async () => {
         const success = await telegramService.sendTradingAlert(currentSignal, currentPrice);
         if (success) {
           setLastTelegramSent(Date.now());
           console.log('✅ Telegram alert sent successfully');
         } else {
-          console.error('❌ Failed to send Telegram alert');
+          console.log('❌ Failed to send Telegram alert');
         }
       };
       sendAlert();
     }
   }, [technicalAnalysis, telegramConfig, candles, lastTelegramSent, telegramService]);
+
+  const indicators = useMemo(() => {
+    if (candles.length === 0) return null;
+    return TechnicalAnalyzer.getTechnicalIndicators(candles);
+  }, [candles]);
+
+  const priceChange = useMemo(() => {
+    if (candles.length < 2) return 0;
+    const current = candles[candles.length - 1].close;
+    const previous = candles[candles.length - 2].close;
+    return ((current - previous) / previous) * 100;
+  }, [candles]);
 
   const handleTelegramConfigChange = useCallback((config: TelegramConfig) => {
     setTelegramConfig(config);
@@ -92,35 +118,155 @@ function App() {
   }, [telegramService]);
 
   const handleTestMessage = useCallback(async () => {
-    const currentPrice = candles.length > 0 ? candles[candles.length - 1].close : 0;
     const testSignal: TradingSignal = {
-        action: 'BUY',
-        confidence: 85,
-        timestamp: Date.now(),
-        reason: `✅ Test message from ${currentSymbol.displayName} Analyzer`,
-        probability: 75,
-        strength: 'STRONG',
-        entry_price: currentPrice,
-        stop_loss: currentPrice * 0.98,
-        take_profit: currentPrice * 1.02,
+      action: 'BUY',
+      confidence: 85,
+      timestamp: Date.now(),
+      reason: `Test message from ${currentSymbol.displayName} Trading Analyzer`,
+      probability: 75,
+      strength: 'STRONG',
+      entry_price: candles.length > 0 ? candles[candles.length - 1].close : 50000,
+      stop_loss: candles.length > 0 ? candles[candles.length - 1].close * 0.98 : 49000,
+      take_profit: candles.length > 0 ? candles[candles.length - 1].close * 1.02 : 51000
     };
-    const success = await telegramService.sendTradingAlert(testSignal, currentPrice);
-    alert(success ? 'Test message sent!' : 'Failed to send. Check config.');
+
+    const success = await telegramService.sendTradingAlert(testSignal, testSignal.entry_price);
+    if (success) {
+      alert('Test message sent successfully!');
+    } else {
+      alert('Failed to send test message. Please check your configuration.');
+    }
   }, [telegramService, candles, currentSymbol]);
-  
-  // Other memoized calculations
-  const indicators = useMemo(() => technicalAnalysis?.indicators, [technicalAnalysis]);
-  const priceChange = useMemo(() => {
-      if (candles.length < 2) return 0;
-      const current = candles[candles.length - 1].close;
-      const previous = candles[candles.length - 2].close;
-      return ((current - previous) / previous) * 100;
-  }, [candles]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-4" />
+          <p className="text-white">Loading market data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center bg-red-900/20 border border-red-700 rounded-lg p-6">
+          <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-4" />
+          <p className="text-red-400 mb-4">Error loading data: {error}</p>
+          <button
+            onClick={refetch}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 mx-auto"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Retry</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!technicalAnalysis || !indicators) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-white">Insufficient data for analysis.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentPrice = candles[candles.length - 1]?.close;
 
   return (
-    <main className="bg-gray-900 text-white min-h-screen p-4">
-      {/* JSX components here, assuming they are the same as in page.tsx */}
-    </main>
+    <div className="min-h-screen bg-gray-900 text-white">
+      <header className="bg-gray-800 border-b border-gray-700 p-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Lụm lúa cùng Tiến Anh</h1>
+            <div className="flex items-center space-x-2">
+              <p className="text-gray-400 text-sm">Antco AI</p>
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                <span className="text-xs text-blue-400">📊 Phân tích kỹ thuật</span>
+              </div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="mb-2">
+              <SymbolSelector currentSymbol={currentSymbol} onSymbolChange={handleSymbolChange} />
+            </div>
+            <div className="flex items-center space-x-2 mb-2">
+              {isConnected ? (
+                <Wifi className="w-4 h-4 text-green-400" />
+              ) : (
+                <WifiOff className="w-4 h-4 text-red-400" />
+              )}
+              <span className={`text-xs ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
+                {isConnected ? 'LIVE' : 'DISCONNECTED'}
+              </span>
+            </div>
+            <div className="text-sm text-gray-400">Last Updated</div>
+            <div className="text-sm">{lastUpdate.toLocaleTimeString()}</div>
+            <button
+              onClick={refetch}
+              className="mt-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm flex items-center space-x-1"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Refresh</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto p-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <PriceChart
+              candles={candles.slice(-100)}
+              symbol={currentSymbol}
+              width={800}
+              height={400}
+              signals={technicalAnalysis.signals}
+            />
+          </div>
+          <div>
+            <MarketOverview
+              analysis={technicalAnalysis}
+              indicators={indicators}
+              symbol={currentSymbol}
+              currentPrice={currentPrice}
+              priceChange={priceChange}
+            />
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <TradingSignals signals={technicalAnalysis.signals} symbol={currentSymbol} />
+        </div>
+
+        <div className="mt-6">
+          <TelegramSettings
+            config={telegramConfig}
+            onConfigChange={handleTelegramConfigChange}
+            onTestMessage={handleTestMessage}
+          />
+        </div>
+
+        <div className="mt-6 bg-yellow-900/20 border border-yellow-700 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <AlertTriangle className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-yellow-400 font-semibold mb-2">Risk Warning</h3>
+              <p className="text-yellow-100 text-sm leading-relaxed">
+                Đừng tham lam. Lương của mày chỉ được 500 cành / ngày...
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
