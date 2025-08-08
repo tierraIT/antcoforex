@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect, useCallback } from "react"
 import { useBinanceData } from "@/hooks/useBinanceData"
 import { TechnicalAnalyzer } from "@/utils/technicalAnalysis"
-import type { TelegramConfig, TradingSignal, MarketAnalysis, TradingSymbol } from "@/types/trading"
+import type { TelegramConfig, TradingSignal, TradingSymbol } from "@/types/trading"
 import { DEFAULT_SYMBOL } from "@/config/symbols"
 import { RefreshCw, AlertTriangle, Wifi, WifiOff } from "lucide-react"
 import { TelegramService } from "@/services/telegramService"
@@ -13,16 +13,16 @@ import { MarketOverview } from "@/components/MarketOverview"
 import { TradingSignals } from "@/components/TradingSignals"
 import { TelegramSettings } from "@/components/TelegramSettings"
 
-// Các components cần import
-// import { PriceChart } from "@/components/PriceChart"
-// import { TradingSignals } from "@/components/TradingSignals"
-// import { MarketOverview } from "@/components/MarketOverview"
-// import { TelegramSettings } from "@/components/TelegramSettings"
-// import { SymbolSelector } from "@/components/SymbolSelector"
-// import { TelegramService } from "@/services/telegramService"
-
 export default function Home() {
-  const [currentSymbol, setCurrentSymbol] = useState<TradingSymbol>(DEFAULT_SYMBOL)
+  const [currentSymbol, setCurrentSymbol] = useState<TradingSymbol>(() => {
+    if (typeof window === "undefined") return DEFAULT_SYMBOL;
+    const savedSymbol = localStorage.getItem('selected_symbol');
+    try {
+      return savedSymbol ? JSON.parse(savedSymbol) : DEFAULT_SYMBOL;
+    } catch {
+      return DEFAULT_SYMBOL;
+    }
+  });
 
   const { candles, loading, error, lastUpdate, isConnected, refetch } = useBinanceData(5000, currentSymbol)
 
@@ -32,43 +32,32 @@ export default function Home() {
     enabled: false,
   })
 
+  const [telegramService, setTelegramService] = useState<TelegramService | null>(null);
   const [lastSignalSent, setLastSignalSent] = useState<number>(0)
 
-  const handleSymbolChange = useCallback((symbol: TradingSymbol) => {
-    setCurrentSymbol(symbol)
-    localStorage.setItem("selected_symbol", JSON.stringify(symbol))
-  }, [])
-
-  const analysis = useMemo(() => {
-    if (candles.length === 0) return null;
-    return TechnicalAnalyzer.analyzeMarket(candles, currentSymbol);
-  }, [candles, currentSymbol]);
-
-  const indicators = useMemo(() => {
-    if (candles.length === 0) return null
-    return TechnicalAnalyzer.getTechnicalIndicators(candles)
-  }, [candles])
-
-  const priceChange = useMemo(() => {
-    if (candles.length < 2) return 0
-    const current = candles[candles.length - 1].close
-    const previous = candles[candles.length - 2].close
-    return ((current - previous) / previous) * 100
-  }, [candles])
-
-  const [telegramService, setTelegramService] = useState<TelegramService | null>(null);
-
+  // Initialize Telegram Service and load config from localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
       const config = {
-        botToken: localStorage.getItem("telegram_bot_token") || "",
-        chatId: localStorage.getItem("telegram_chat_id") || "",
-        enabled: localStorage.getItem("telegram_enabled") === "true",
+        botToken: localStorage.getItem("telegram_bot_token") || "7578707048:AAG5Vr667I-3LerfhO1YzYbgTinXJwuHmAA",
+        chatId: localStorage.getItem("telegram_chat_id") || "-1002577959257",
+        enabled: localStorage.getItem("telegram_enabled") !== "false",
       };
       setTelegramConfig(config);
       setTelegramService(new TelegramService(config));
     }
   }, []);
+
+  const handleSymbolChange = useCallback((symbol: TradingSymbol) => {
+    setCurrentSymbol(symbol)
+    localStorage.setItem("selected_symbol", JSON.stringify(symbol))
+    setLastSignalSent(0); // Reset cooldown on symbol change
+  }, [])
+
+  const analysis = useMemo(() => {
+    if (candles.length < 50) return null;
+    return TechnicalAnalyzer.analyzeMarket(candles, currentSymbol);
+  }, [candles, currentSymbol]);
 
   const handleTelegramConfigChange = useCallback(
     (config: TelegramConfig) => {
@@ -76,7 +65,6 @@ export default function Home() {
       if (telegramService) {
         telegramService.updateConfig(config);
       }
-
       localStorage.setItem("telegram_bot_token", config.botToken)
       localStorage.setItem("telegram_chat_id", config.chatId)
       localStorage.setItem("telegram_enabled", config.enabled.toString())
@@ -85,204 +73,108 @@ export default function Home() {
   )
 
   const handleTestMessage = useCallback(async () => {
-    if (!telegramService) return;
-    
+    if (!telegramService || candles.length === 0) {
+        alert("Service not ready or no market data.");
+        return;
+    };
+
+    const currentPrice = candles[candles.length - 1].close;
     const testSignal: TradingSignal = {
       action: "BUY",
       confidence: 85,
       timestamp: Date.now(),
-      reason: `Test message from ${currentSymbol.displayName} Trading Analyzer`,
+      reason: `✅ Test message from ${currentSymbol.displayName} Analyzer`,
       probability: 75,
       strength: "STRONG",
-      entry_price: candles.length > 0 ? candles[candles.length - 1].close : 50000,
-      stop_loss: candles.length > 0 ? candles[candles.length - 1].close * 0.98 : 49000,
-      take_profit: candles.length > 0 ? candles[candles.length - 1].close * 1.02 : 51000,
+      entry_price: currentPrice,
+      stop_loss: currentPrice * 0.98,
+      take_profit: currentPrice * 1.02,
     }
 
-    const success = await telegramService.sendTradingAlert(testSignal, testSignal.entry_price)
+    const success = await telegramService.sendTradingAlert(testSignal, currentPrice)
     if (success) {
       alert("Test message sent successfully!")
     } else {
-      alert("Failed to send test message. Please check your configuration.")
+      alert("Failed to send test message. Check console for errors.")
     }
   }, [telegramService, candles, currentSymbol])
 
-  // Auto-send Telegram signals
+  // *** UPDATED AUTO-SEND TELEGRAM LOGIC ***
   useEffect(() => {
     if (!analysis || !telegramConfig.enabled || !telegramService || !candles.length) {
       return
     }
 
     const currentSignal = analysis.signals[0]
-    if (!currentSignal) {
+    if (!currentSignal || currentSignal.action === 'HOLD') {
       return
     }
 
-    const timeSinceLastSignal = Date.now() - lastSignalSent
-    const isStrongSignal = currentSignal.strength === 'STRONG'
-    const isActionable = currentSignal.action === "BUY" || currentSignal.action === "SELL"
-    const meetsProbabilityThreshold = currentSignal.probability >= 40
-    const meetsConfidenceThreshold = currentSignal.confidence >= 65
-    const cooldownPassed = timeSinceLastSignal > 60000 // 1 minute
+    const timeSinceLastSignal = Date.now() - lastSignalSent;
 
-    const shouldSend = isStrongSignal && isActionable && meetsProbabilityThreshold && meetsConfidenceThreshold && cooldownPassed
+    // --- NEW, LESS RESTRICTIVE CONDITIONS ---
+    const isActionable = currentSignal.action === "BUY" || currentSignal.action === "SELL";
+    const meetsStrengthThreshold = currentSignal.strength === 'STRONG' || currentSignal.strength === 'MODERATE';
+    const meetsProbabilityThreshold = currentSignal.probability >= 35;
+    const meetsConfidenceThreshold = currentSignal.confidence >= 55;
+    const cooldownPassed = timeSinceLastSignal > 30000; // 30 second cooldown
 
-    console.log('🔍 Telegram send check:', {
-      signal: currentSignal.action,
-      strength: currentSignal.strength,
-      probability: currentSignal.probability,
-      confidence: currentSignal.confidence,
-      isStrongSignal,
-      isActionable,
-      meetsProbabilityThreshold,
-      meetsConfidenceThreshold,
-      cooldownPassed,
-      shouldSend
-    })
+    const shouldSend = isActionable && meetsStrengthThreshold && meetsProbabilityThreshold && meetsConfidenceThreshold && cooldownPassed;
+
     if (shouldSend) {
-      const currentPrice = candles[candles.length - 1].close
+      const currentPrice = candles[candles.length - 1].close;
+      console.log(`🚀 Sending Telegram Alert: ${currentSignal.action} | ${currentSignal.reason} | Confidence: ${currentSignal.confidence}`);
       telegramService.sendTradingAlert(currentSignal, currentPrice).then((success) => {
         if (success) {
-          setLastSignalSent(Date.now())
-          console.log('✅ Telegram alert sent successfully')
+          setLastSignalSent(Date.now());
+          console.log('✅ Telegram alert sent successfully');
         } else {
-          console.log('❌ Failed to send Telegram alert')
+          console.error('❌ Failed to send Telegram alert.');
         }
-      })
+      });
     }
-  }, [analysis, telegramConfig.enabled, telegramService, candles, lastSignalSent])
+  }, [analysis, telegramConfig, candles, telegramService, lastSignalSent]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-4" />
-          <p className="text-white">Loading market data...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center bg-red-900/20 border border-red-700 rounded-lg p-6">
-          <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-4" />
-          <p className="text-red-400 mb-4">Error loading data: {error}</p>
-          <button
-            onClick={refetch}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 mx-auto"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Retry</span>
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (!analysis || !indicators) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-white">Insufficient data for analysis or analysis is not ready.</p>
-        </div>
-      </div>
-    )
-  }
-
-  const currentPrice = candles[candles.length - 1].close
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 p-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Lụm lúa cùng Tiến Anh</h1>
-            <div className="flex items-center space-x-2">
-              <p className="text-gray-400 text-sm">Technical Analysis</p>
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <span className="text-xs text-blue-400">📊 Phân tích kỹ thuật</span>
-              </div>
+    <main className="bg-gray-900 text-white min-h-screen p-4">
+      <div className="max-w-7xl mx-auto">
+        <header className="flex flex-wrap justify-between items-center mb-4 gap-4">
+            <h1 className="text-2xl font-bold">Scalping Assistant</h1>
+            <div className="flex items-center gap-4">
+                <SymbolSelector onSymbolChange={handleSymbolChange} defaultSymbol={currentSymbol} />
+                <button onClick={() => refetch()} disabled={loading} className="p-2 bg-gray-700 rounded-md hover:bg-gray-600 disabled:opacity-50">
+                    {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                </button>
+                <div className={`flex items-center gap-2 text-sm ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
+                    {isConnected ? <Wifi className="w-5 h-5" /> : <WifiOff className="w-5 h-5" />}
+                    <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
+                </div>
             </div>
-          </div>
-          <div className="text-right">
-            <div className="mb-2">
-              <SymbolSelector currentSymbol={currentSymbol} onSymbolChange={handleSymbolChange} />
-            </div>
-            <div className="flex items-center space-x-2 mb-2">
-              {isConnected ? <Wifi className="w-4 h-4 text-green-400" /> : <WifiOff className="w-4 h-4 text-red-400" />}
-              <span className={`text-xs ${isConnected ? "text-green-400" : "text-red-400"}`}>
-                {isConnected ? "LIVE" : "DISCONNECTED"}
-              </span>
-            </div>
-            <div className="text-sm text-gray-400">Last Updated</div>
-            <div className="text-sm">{lastUpdate.toLocaleTimeString()}</div>
-            <button
-              onClick={refetch}
-              className="mt-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm flex items-center space-x-1"
-            >
-              <RefreshCw className="w-3 h-3" />
-              <span>Refresh</span>
-            </button>
-          </div>
-        </div>
-      </header>
+        </header>
 
-      <div className="max-w-7xl mx-auto p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Chart */}
-          <div className="lg:col-span-2">
-            <PriceChart
-              candles={candles.slice(-100)}
-              symbol={currentSymbol}
-              width={800}
-              height={400}
-              signals={analysis?.signals || []}
+        {error && (
+          <div className="bg-red-900/50 border border-red-700 text-red-300 p-4 rounded-lg mb-4 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            <p><strong>Error:</strong> {error}</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 space-y-4">
+            <PriceChart candles={candles} indicators={analysis?.indicators} loading={loading} />
+            <MarketOverview analysis={analysis} lastUpdate={lastUpdate} priceChange={priceChange} />
+          </div>
+          <div className="space-y-4">
+            <TradingSignals signals={analysis?.signals || []} symbol={currentSymbol} />
+            <TelegramSettings 
+              config={telegramConfig} 
+              onConfigChange={handleTelegramConfigChange}
+              onTestMessage={handleTestMessage}
             />
-          </div>
-
-          {/* Right Column - Market Overview */}
-          <div>
-            <MarketOverview
-              analysis={analysis}
-              indicators={indicators}
-              symbol={currentSymbol}
-              currentPrice={currentPrice}
-              priceChange={priceChange}
-            />
-          </div>
-        </div>
-
-        {/* Trading Signals */}
-        <div className="mt-6">
-          <TradingSignals signals={analysis?.signals || []} symbol={currentSymbol} />
-        </div>
-
-        {/* Telegram Settings */}
-        <div className="mt-6">
-          <TelegramSettings
-            config={telegramConfig}
-            onConfigChange={handleTelegramConfigChange}
-            onTestMessage={handleTestMessage}
-          />
-        </div>
-
-        {/* Risk Warning */}
-        <div className="mt-6 bg-yellow-900/20 border border-yellow-700 rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <AlertTriangle className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="text-yellow-400 font-semibold mb-2">Risk Warning</h3>
-              <p className="text-yellow-100 text-sm leading-relaxed">
-                Đừng tham lam. Lương của mày chỉ được 500 cành / ngày...
-              </p>
-            </div>
           </div>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
