@@ -380,7 +380,7 @@ export class TechnicalAnalyzer {
         } else if (score >= 40) {
             action = 'BUY';
             strength = 'MODERATE';
-            probability = Math.min(75, 50 + (score - 40) * 0.5);
+            probability = Math.min(75, 50 + (score - 30) * 0.5);
         } else if (score <= -60) {
             action = 'SELL';
             strength = 'STRONG';
