@@ -336,12 +336,12 @@ export class TechnicalAnalyzer {
             reasons.push('Price pullback to EMA dynamic zone in downtrend');
         }
       
-        // Moving Average Analysis (Weight: 20%)
+        // Moving Average Analysis (Weight: 15%) - Giảm trọng số vì đã có logic EMA ở trên
         if (currentPrice > indicators.sma20 && indicators.sma20 > indicators.sma50) {
-            score += 20;
+            score += 15;
             reasons.push('Price above aligned SMAs');
         } else if (currentPrice < indicators.sma20 && indicators.sma20 < indicators.sma50) {
-            score -= 20;
+            score -= 15;
             reasons.push('Price below aligned SMAs');
         }
 
