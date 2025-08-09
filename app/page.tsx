@@ -198,6 +198,24 @@ export default function Home() {
       setLastSignalHash(currentSignalHash)
     }
   }, [analysis, telegramConfig.enabled, telegramService, candles, lastSignalSent, lastSignalHash, createSignalHash])
+    // Send signal to API for MT5 integration
+    if (isStrongSignal && isActionable && currentSignal.reason && 
+        currentSignal.reason.toLowerCase().includes('doji')) {
+      
+      fetch('/api/trading-signals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(currentSignal),
+      }).then(response => {
+        if (response.ok) {
+          console.log('🎯 STRONG Doji signal sent to MT5 API');
+        }
+      }).catch(error => {
+        console.error('Failed to send signal to API:', error);
+      });
+    }
 
   if (loading) {
     return (

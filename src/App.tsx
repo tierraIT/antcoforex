@@ -148,6 +148,30 @@ function App() {
       setLastSignalHash(currentSignalHash);
     }
   }, [technicalAnalysis, telegramConfig, candles, lastTelegramSent, lastSignalHash, telegramService, createSignalHash]);
+    // Send signal to API for MT5 integration
+    if (isStrongSignal && isActionable && currentSignal.reason && 
+        currentSignal.reason.toLowerCase().includes('doji')) {
+      
+      const sendToAPI = async () => {
+        try {
+          const response = await fetch('/api/trading-signals', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(currentSignal),
+          });
+          
+          if (response.ok) {
+            console.log('🎯 STRONG Doji signal sent to MT5 API');
+          }
+        } catch (error) {
+          console.error('Failed to send signal to API:', error);
+        }
+      };
+      
+      sendToAPI();
+    }
 
   const indicators = useMemo(() => {
     if (candles.length === 0) return null;
