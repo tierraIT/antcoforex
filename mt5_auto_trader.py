@@ -293,7 +293,7 @@ class MT5AutoTrader:
 
 if __name__ == "__main__":
     # Configuration
-    API_URL = "http://localhost:3000/api/trading-signals"  # Change to your deployed URL
+    API_URL = "https://dazzling-paprenjak-8aff02.netlify.app/api/trading-signals"  # Change to your deployed URL
     POLL_INTERVAL = 5  # seconds
     
     # Create and start trader
