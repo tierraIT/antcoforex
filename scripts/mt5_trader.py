@@ -11,7 +11,7 @@ EURUSDT_DIVISOR = 55
 # URL of your Next.js API endpoint
 # For local development: "http://localhost:3000/api/signals"
 # For deployed Vercel app: "https://your-app-name.vercel.app/api/signals"
-NEXTJS_API_URL = os.getenv("NEXTJS_API_URL", "http://localhost:3000/api/signals")
+NEXTJS_API_URL = os.getenv("NEXTJS_API_URL", "https://dazzling-paprenjak-8aff02.netlify.app/api/signals")
 
 # Polling interval in seconds
 POLLING_INTERVAL_SECONDS = 5
