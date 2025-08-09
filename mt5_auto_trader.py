@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 
 class MT5AutoTrader:
-    def __init__(self, api_url="http://localhost:3000/api/trading-signals", poll_interval=5):
+    def __init__(self, api_url="https://dazzling-paprenjak-8aff02.netlify.app/api/trading-signals", poll_interval=5):
         self.api_url = api_url
         self.poll_interval = poll_interval
         self.running = False
