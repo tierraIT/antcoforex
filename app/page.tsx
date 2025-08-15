@@ -132,10 +132,6 @@ export default function Home() {
       return;
     }
 
-    const currentSignal = analysis.signals[0];
-    if (!currentSignal) {
-      return;
-    }
 
     const currentPrice = candles[candles.length - 1].close;
     const timeSinceLastSignal = Date.now() - lastSignalSent;
