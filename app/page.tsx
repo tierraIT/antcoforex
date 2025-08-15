@@ -140,7 +140,8 @@ export default function Home() {
     const currentPrice = candles[candles.length - 1].close;
     const timeSinceLastSignal = Date.now() - lastSignalSent;
     const currentSignalHash = createSignalHash(currentSignal);
-    const signalChanged = currentSignalHash !== lastSignalHash && lastSignalHash !== "";
+    const signalChanged =
+      currentSignalHash !== lastSignalHash && lastSignalHash !== "";
 
     // Enhanced conditions for more notifications:
     const isStrongSignal = currentSignal.strength === "STRONG";
@@ -245,36 +246,7 @@ export default function Home() {
         }
       }
     }
-
-    // --- MT5 API Integration Logic (FIXED) ---
-    // This logic is now correctly placed inside the useEffect hook.
-    if (
-      isStrongSignal &&
-      isActionable &&
-      currentSignal.reason &&
-      currentSignal.reason.toLowerCase().includes("doji")
-    ) {
-      fetch("/api/trading-signals", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(currentSignal),
-      })
-        .then((response) => {
-          if (response.ok) {
-            console.log("🎯 STRONG Doji signal sent to MT5 API");
-          } else {
-            console.error(
-              "Failed to send signal to MT5 API, status:",
-              response.status
-            );
-          }
-        })
-        .catch((error) => {
-          console.error("Failed to send signal to API:", error);
-        });
-    }
+    // Logic gửi tín hiệu đến MT5 đã bị xóa.
   }, [
     analysis,
     telegramConfig.enabled,
