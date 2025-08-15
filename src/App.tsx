@@ -149,7 +149,8 @@ function App() {
     }
   }, [technicalAnalysis, telegramConfig, candles, lastTelegramSent, lastSignalHash, telegramService, createSignalHash]);
     // Send signal to API for MT5 integration
-    if (isStrongSignal && isActionable && currentSignal.reason && 
+    const isStrongSignal = currentSignal.strength === 'STRONG';
+    if (isStrongSignal && isActionable && currentSignal.reason &&
         currentSignal.reason.toLowerCase().includes('doji')) {
       
       const sendToAPI = async () => {

@@ -204,6 +204,7 @@ export default function Home() {
 
     // --- MT5 API Integration Logic (FIXED) ---
     // This logic is now correctly placed inside the useEffect hook.
+    const isStrongSignal = currentSignal.strength === 'STRONG';
     if (isStrongSignal && isActionable && currentSignal.reason &&
         currentSignal.reason.toLowerCase().includes('doji')) {
         
