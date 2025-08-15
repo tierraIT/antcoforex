@@ -40,7 +40,7 @@ export default function Home() {
     setCurrentSymbol(symbol);
     localStorage.setItem("selected_symbol", JSON.stringify(symbol));
     setLastSignalSent(0);
-    setLastSignalHash(""); // Reset signal hash when changing symbols
+    setLastSignalHash("");
   }, []);
 
   const analysis = useMemo(() => {
@@ -60,7 +60,6 @@ export default function Home() {
     return ((current - previous) / previous) * 100;
   }, [candles]);
 
-  // Create a hash of the current signal to detect changes
   const createSignalHash = useCallback(
     (signal: TradingSignal): string => {
       if (!signal) return "";
@@ -89,7 +88,6 @@ export default function Home() {
       if (telegramService) {
         telegramService.updateConfig(config);
       }
-
       localStorage.setItem("telegram_bot_token", config.botToken);
       localStorage.setItem("telegram_chat_id", config.chatId);
       localStorage.setItem("telegram_enabled", config.enabled.toString());
@@ -99,7 +97,6 @@ export default function Home() {
 
   const handleTestMessage = useCallback(async () => {
     if (!telegramService) return;
-
     const testSignal: TradingSignal = {
       action: "BUY",
       confidence: 85,
@@ -113,12 +110,10 @@ export default function Home() {
       take_profit:
         candles.length > 0 ? candles[candles.length - 1].close * 1.02 : 51000,
     };
-
     const success = await telegramService.sendTradingAlert(
       testSignal,
       testSignal.entry_price
     );
-    // NOTE: Using a custom modal/toast notification system is better than alert() in production apps.
     if (success) {
       alert("🎯 Test message sent successfully! Check your Telegram.");
     } else {
@@ -126,12 +121,17 @@ export default function Home() {
     }
   }, [telegramService, candles, currentSymbol]);
 
-  // Enhanced auto-send Telegram signals with more notifications
   useEffect(() => {
     if (!analysis || !telegramService || !candles.length) {
       return;
     }
 
+    const currentSignal = analysis.signals[0];
+
+    // Thêm kiểm tra này để đảm bảo currentSignal tồn tại trước khi sử dụng
+    if (!currentSignal) {
+      return;
+    }
 
     const currentPrice = candles[candles.length - 1].close;
     const timeSinceLastSignal = Date.now() - lastSignalSent;
@@ -139,7 +139,6 @@ export default function Home() {
     const signalChanged =
       currentSignalHash !== lastSignalHash && lastSignalHash !== "";
 
-    // Enhanced conditions for more notifications:
     const isStrongSignal = currentSignal.strength === "STRONG";
     const isModerateSignal = currentSignal.strength === "MODERATE";
     const isWeakButHighConfidence =
@@ -147,15 +146,12 @@ export default function Home() {
     const isActionable =
       currentSignal.action === "BUY" || currentSignal.action === "SELL";
 
-    // Lowered thresholds for more signals
-    const meetsProbabilityThreshold = currentSignal.probability >= 35; // Lowered from 40
-    const meetsConfidenceThreshold = currentSignal.confidence >= 55; // Lowered from 65
+    const meetsProbabilityThreshold = currentSignal.probability >= 35;
+    const meetsConfidenceThreshold = currentSignal.confidence >= 55;
 
-    // Reduced cooldown and added signal change detection
-    const cooldownPassed = timeSinceLastSignal > 45000; // 45 seconds (reduced from 60)
-    const quickCooldownPassed = timeSinceLastSignal > 15000; // 15 seconds for signal changes
+    const cooldownPassed = timeSinceLastSignal > 45000;
+    const quickCooldownPassed = timeSinceLastSignal > 15000;
 
-    // --- Telegram Sending Logic ---
     if (telegramConfig.enabled) {
       const shouldSendStrong =
         isStrongSignal &&
@@ -236,13 +232,11 @@ export default function Home() {
             }
           });
       } else {
-        // Update signal hash even if not sending to track changes
         if (currentSignalHash !== lastSignalHash) {
           setLastSignalHash(currentSignalHash);
         }
       }
     }
-    // Logic gửi tín hiệu đến MT5 đã bị xóa.
   }, [
     analysis,
     telegramConfig.enabled,
@@ -302,7 +296,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
@@ -365,7 +358,6 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto p-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Chart */}
           <div className="lg:col-span-2">
             <PriceChart
               candles={candles.slice(-100)}
@@ -375,8 +367,6 @@ export default function Home() {
               signals={analysis?.signals || []}
             />
           </div>
-
-          {/* Right Column - Market Overview */}
           <div>
             <MarketOverview
               analysis={analysis}
@@ -388,12 +378,10 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Trading Signals */}
         <div className="mt-6">
           <TradingSignals signals={analysis?.signals || []} symbol={currentSymbol} />
         </div>
 
-        {/* Telegram Settings */}
         <div className="mt-6">
           <TelegramSettings
             config={telegramConfig}
@@ -402,7 +390,6 @@ export default function Home() {
           />
         </div>
 
-        {/* Enhanced notification info */}
         <div className="mt-6 bg-blue-900/20 border border-blue-700 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <div className="text-2xl flex-shrink-0 mt-0.5">🚀</div>
@@ -436,7 +423,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Risk Warning */}
         <div className="mt-6 bg-yellow-900/20 border border-yellow-700 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <AlertTriangle className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5" />
